@@ -37,3 +37,14 @@
 .tag-suggestion-buttons button {
   padding: 8px 16px;
 }
+
+/* Settings input fields - use normal text color instead of muted */
+.auto-tagger-settings input[type="text"],
+.auto-tagger-settings textarea {
+  color: var(--text-normal);
+}
+
+.auto-tagger-settings input[type="text"]::placeholder,
+.auto-tagger-settings textarea::placeholder {
+  color: var(--text-muted);
+}
