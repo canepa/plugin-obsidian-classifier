@@ -259,6 +259,11 @@ export default class AutoTaggerPlugin extends Plugin {
       return;
     }
     
+    if (!this.shouldProcessFile(file)) {
+      new Notice('⚠️ File is outside scoped directories. Check folder mode settings.');
+      return;
+    }
+    
     if (this.classifier.getStats().totalDocs === 0) {
       new Notice('Classifier not trained. Please train first.');
       return;
@@ -325,6 +330,11 @@ export default class AutoTaggerPlugin extends Plugin {
     
     if (!file) {
       new Notice('No active file');
+      return;
+    }
+    
+    if (!this.shouldProcessFile(file)) {
+      new Notice('⚠️ File is outside scoped directories. Check folder mode settings.');
       return;
     }
     
