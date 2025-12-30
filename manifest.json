@@ -1,0 +1,9 @@
+{
+  "id": "obsidian-auto-tagger",
+  "name": "Auto Tagger",
+  "version": "1.0.0",
+  "minAppVersion": "0.15.0",
+  "description": "Automatically tag notes using Naive Bayes classifier trained on your existing tagged notes",
+  "author": "Alessandro Canepa",
+  "isDesktopOnly": false
+}

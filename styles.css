@@ -1,0 +1,39 @@
+.tag-suggestions-list {
+  margin: 1em 0;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.tag-suggestion-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.tag-suggestion-item:last-child {
+  border-bottom: none;
+}
+
+.tag-suggestion-item input[type="checkbox"] {
+  margin: 0;
+}
+
+.tag-suggestion-item label {
+  flex: 1;
+  cursor: pointer;
+}
+
+.tag-suggestion-buttons {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-top: 1em;
+  padding-top: 1em;
+  border-top: 1px solid var(--background-modifier-border);
+}
+
+.tag-suggestion-buttons button {
+  padding: 8px 16px;
+}
