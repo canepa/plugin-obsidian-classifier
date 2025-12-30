@@ -1,23 +1,27 @@
 import { App, Modal, Notice, Plugin, TFile, TFolder, parseYaml, stringifyYaml } from 'obsidian';
-import { NaiveBayesClassifier } from './classifier';
+import { EmbeddingClassifier } from './embedding-classifier';
 import { AutoTaggerSettings, AutoTaggerSettingTab, DEFAULT_SETTINGS } from './settings';
 
 export default class AutoTaggerPlugin extends Plugin {
   settings: AutoTaggerSettings;
-  classifier: NaiveBayesClassifier;
+  classifier: EmbeddingClassifier;
 
   async onload() {
+    console.log('[Auto Tagger] Loading plugin...');
+    
     await this.loadSettings();
     
-    this.classifier = new NaiveBayesClassifier();
-    
-    // Load saved classifier data
+    this.classifier = new EmbeddingClassifier();
     if (this.settings.classifierData) {
       try {
         this.classifier.import(this.settings.classifierData);
+        const stats = this.classifier.getStats();
+        console.log(`[Auto Tagger] Loaded classifier with ${stats.totalTags} tags trained on ${stats.totalDocs} documents`);
       } catch (e) {
-        console.error('Failed to load classifier data:', e);
+        console.error('[Auto Tagger] Failed to load classifier data:', e);
       }
+    } else {
+      console.log('[Auto Tagger] No trained classifier found. Use "Train classifier" command to get started.');
     }
 
     // Add ribbon icon
@@ -33,21 +37,33 @@ export default class AutoTaggerPlugin extends Plugin {
     });
 
     this.addCommand({
+      id: 'debug-classifier',
+      name: 'Debug classifier (show stats)',
+      callback: () => this.debugClassifier()
+    });
+
+    this.addCommand({
       id: 'tag-current-note',
       name: 'Suggest tags for current note',
       callback: () => this.showTagSuggestions()
     });
 
     this.addCommand({
-      id: 'tag-all-notes',
-      name: 'Tag all notes in scope',
-      callback: () => this.tagAllNotes()
+      id: 'auto-tag-current-integrate',
+      name: 'Auto-tag current note',
+      callback: () => this.autoTagCurrentNote('integrate')
     });
 
     this.addCommand({
-      id: 'tag-folder',
-      name: 'Tag all notes in current folder',
-      callback: () => this.tagCurrentFolder()
+      id: 'tag-all-notes-integrate',
+      name: 'Batch tag all notes',
+      callback: () => this.tagAllNotes('integrate')
+    });
+
+    this.addCommand({
+      id: 'tag-folder-integrate',
+      name: 'Batch tag folder',
+      callback: () => this.tagCurrentFolder('integrate')
     });
 
     // Auto-tag on save
@@ -63,6 +79,8 @@ export default class AutoTaggerPlugin extends Plugin {
 
     // Settings tab
     this.addSettingTab(new AutoTaggerSettingTab(this.app, this));
+    
+    console.log('[Auto Tagger] Plugin loaded successfully');
   }
 
   async loadSettings() {
@@ -145,22 +163,28 @@ export default class AutoTaggerPlugin extends Plugin {
    * Train the classifier on existing tagged notes
    */
   async trainClassifier(): Promise<void> {
-    const notice = new Notice('Training classifier...', 0);
+    const notice = new Notice('Training embedding classifier on tagged notes...', 0);
     
     this.classifier.reset();
     
     const files = this.getFilesInScope();
-    let trained = 0;
+    const taggedFiles: TFile[] = [];
     
+    // Train on explicitly tagged notes
     for (const file of files) {
       const { frontmatter, content } = await this.parseFile(file);
       const tags = this.getTagsFromFrontmatter(frontmatter);
       
       if (tags.length > 0) {
-        this.classifier.train(content, tags);
-        trained++;
+        await this.classifier.train(content, tags);
+        taggedFiles.push(file);
       }
     }
+    
+    // Finalize training (average and normalize embeddings)
+    await this.classifier.finalizeTraining();
+    
+    console.log(`[Training] Trained on ${taggedFiles.length} tagged notes`);
     
     // Save classifier data
     this.settings.classifierData = this.classifier.export();
@@ -169,19 +193,59 @@ export default class AutoTaggerPlugin extends Plugin {
     notice.hide();
     
     const stats = this.classifier.getStats();
-    new Notice(`Trained on ${trained} documents with ${stats.totalTags} unique tags`);
+    const trainingMsg = `Training complete: ${taggedFiles.length} notes (${stats.totalTags} unique tags)`;
+    
+    console.log(`[EmbeddingClassifier] ${trainingMsg}`);
+    new Notice(trainingMsg);
+  }
+
+  /**
+   * Debug classifier information
+   */
+  debugClassifier(): void {
+    const stats = this.classifier.getStats();
+    const file = this.app.workspace.getActiveFile();
+    
+    // Get all known tags from the classifier
+    const knownTags = this.classifier.getAllTags();
+    
+    let message = `Classifier Stats:\n`;
+    message += `- Trained on: ${stats.totalDocs} documents\n`;
+    message += `- Unique tags: ${stats.totalTags}\n`;
+    message += `- Known tags: ${knownTags.join(', ')}\n`;
+    message += `- Threshold: ${this.settings.threshold}\n`;
+    message += `- Max tags: ${this.settings.maxTags}\n`;
+    message += `- Whitelist: ${this.settings.whitelist.length > 0 ? this.settings.whitelist.join(', ') : 'none'}\n`;
+    message += `- Blacklist: ${this.settings.blacklist.length > 0 ? this.settings.blacklist.join(', ') : 'none'}\n`;
+    
+    if (file) {
+      message += `\nCurrent file: ${file.basename}\n`;
+      message += `Open the console (Ctrl+Shift+I) to see detailed classification logs.`;
+    }
+    
+    console.log(message);
+    const exportedData = this.classifier.export();
+    console.log('Tag counts:', exportedData.tagDocCounts);
+    
+    new Notice(message, 10000);
   }
 
   /**
    * Get tag suggestions for a file
    */
   async getSuggestions(file: TFile): Promise<Array<{tag: string, probability: number}>> {
-    const { content } = await this.parseFile(file);
+    const { frontmatter, content } = await this.parseFile(file);
+    const existingTags = this.getTagsFromFrontmatter(frontmatter);
     
     const whitelist = this.settings.whitelist.length > 0 ? this.settings.whitelist : undefined;
     
-    return this.classifier.classify(content, whitelist, this.settings.threshold)
-      .slice(0, this.settings.maxTags);
+    return await this.classifier.classify(
+      content, 
+      whitelist, 
+      this.settings.threshold, 
+      this.settings.maxTags,
+      existingTags
+    );
   }
 
   /**
@@ -210,14 +274,27 @@ export default class AutoTaggerPlugin extends Plugin {
   /**
    * Apply tags to a file
    */
-  async applyTags(file: TFile, newTags: string[]): Promise<void> {
+  async applyTags(file: TFile, newTags: string[], mode: 'integrate' | 'overwrite' = 'integrate'): Promise<void> {
     const { frontmatter, content, raw } = await this.parseFile(file);
     
-    // Merge with existing tags
-    const existingTags = this.getTagsFromFrontmatter(frontmatter);
-    const allTags = [...new Set([...existingTags, ...newTags])];
+    let finalTags: string[];
     
-    frontmatter.tags = allTags;
+    if (mode === 'overwrite') {
+      // Replace existing tags with new ones
+      finalTags = [...new Set(newTags)];
+    } else {
+      // Merge with existing tags and remove blacklisted tags
+      const existingTags = this.getTagsFromFrontmatter(frontmatter);
+      
+      // Filter out blacklisted tags from existing tags
+      const nonBlacklistedExisting = existingTags.filter(tag => 
+        !this.settings.blacklist.some(b => b.toLowerCase() === tag.toLowerCase())
+      );
+      
+      finalTags = [...new Set([...nonBlacklistedExisting, ...newTags])];
+    }
+    
+    frontmatter.tags = finalTags;
     
     // Rebuild file content
     const newFrontmatter = stringifyYaml(frontmatter).trim();
@@ -236,21 +313,52 @@ export default class AutoTaggerPlugin extends Plugin {
     
     if (suggestions.length > 0) {
       const tags = suggestions.map(s => s.tag);
-      await this.applyTags(file, tags);
+      await this.applyTags(file, tags, 'integrate');
     }
+  }
+
+  /**
+   * Auto-tag current note with mode selection
+   */
+  async autoTagCurrentNote(mode: 'integrate' | 'overwrite'): Promise<void> {
+    const file = this.app.workspace.getActiveFile();
+    
+    if (!file) {
+      new Notice('No active file');
+      return;
+    }
+    
+    if (this.classifier.getStats().totalDocs === 0) {
+      new Notice('Classifier not trained. Please train first.');
+      return;
+    }
+    
+    const suggestions = await this.getSuggestions(file);
+    
+    if (suggestions.length === 0) {
+      new Notice('No tag suggestions found.');
+      return;
+    }
+    
+    const tags = suggestions.map(s => s.tag);
+    const modeText = mode === 'overwrite' ? 'replaced with' : 'added (blacklisted tags removed)';
+    
+    await this.applyTags(file, tags, mode);
+    new Notice(`${tags.length} tags ${modeText}`);
   }
 
   /**
    * Tag all notes in scope
    */
-  async tagAllNotes(): Promise<void> {
+  async tagAllNotes(mode: 'integrate' | 'overwrite' = 'integrate'): Promise<void> {
     if (this.classifier.getStats().totalDocs === 0) {
       new Notice('Classifier not trained. Please train first.');
       return;
     }
     
     const files = this.getFilesInScope();
-    const notice = new Notice(`Tagging ${files.length} files...`, 0);
+    const modeText = mode === 'overwrite' ? 'Overwriting' : 'Integrating';
+    const notice = new Notice(`${modeText} tags for ${files.length} files...`, 0);
     
     let tagged = 0;
     
@@ -259,19 +367,20 @@ export default class AutoTaggerPlugin extends Plugin {
       
       if (suggestions.length > 0) {
         const tags = suggestions.map(s => s.tag);
-        await this.applyTags(file, tags);
+        await this.applyTags(file, tags, mode);
         tagged++;
       }
     }
     
     notice.hide();
-    new Notice(`Tagged ${tagged} files`);
+    const actionText = mode === 'overwrite' ? 'overwritten' : 'updated (blacklisted tags removed)';
+    new Notice(`${tagged} files ${actionText}`);
   }
 
   /**
    * Tag all notes in current folder
    */
-  async tagCurrentFolder(): Promise<void> {
+  async tagCurrentFolder(mode: 'integrate' | 'overwrite' = 'integrate'): Promise<void> {
     const file = this.app.workspace.getActiveFile();
     
     if (!file) {
@@ -293,7 +402,8 @@ export default class AutoTaggerPlugin extends Plugin {
     const files = this.app.vault.getMarkdownFiles()
       .filter(f => f.parent?.path === folder.path);
     
-    const notice = new Notice(`Tagging ${files.length} files in ${folder.name}...`, 0);
+    const modeText = mode === 'overwrite' ? 'Overwriting' : 'Integrating';
+    const notice = new Notice(`${modeText} tags for ${files.length} files in ${folder.name}...`, 0);
     
     let tagged = 0;
     
@@ -302,13 +412,14 @@ export default class AutoTaggerPlugin extends Plugin {
       
       if (suggestions.length > 0) {
         const tags = suggestions.map(s => s.tag);
-        await this.applyTags(f, tags);
+        await this.applyTags(f, tags, mode);
         tagged++;
       }
     }
     
     notice.hide();
-    new Notice(`Tagged ${tagged} files in ${folder.name}`);
+    const actionText = mode === 'overwrite' ? 'overwritten' : 'updated (blacklisted tags removed)';
+    new Notice(`${tagged} files ${actionText} in ${folder.name}`);
   }
 
   onunload() {
@@ -329,6 +440,7 @@ class TagSuggestionModal extends Modal {
   suggestions: Array<{tag: string, probability: number}>;
   existingTags: string[];
   selectedTags: Set<string>;
+  blacklistedTags: string[];
 
   constructor(
     app: App, 
@@ -343,6 +455,11 @@ class TagSuggestionModal extends Modal {
     this.suggestions = suggestions;
     this.existingTags = existingTags;
     this.selectedTags = new Set(suggestions.map(s => s.tag));
+    
+    // Find blacklisted tags in existing tags
+    this.blacklistedTags = existingTags.filter(tag => 
+      plugin.settings.blacklist.some(b => b.toLowerCase() === tag.toLowerCase())
+    );
   }
 
   onOpen() {
@@ -353,6 +470,19 @@ class TagSuggestionModal extends Modal {
     
     if (this.existingTags.length > 0) {
       contentEl.createEl('p', { text: `Existing tags: ${this.existingTags.join(', ')}` });
+    }
+    
+    // Show warning about blacklisted tags that will be removed
+    if (this.blacklistedTags.length > 0) {
+      const warningEl = contentEl.createDiv({ cls: 'mod-warning' });
+      warningEl.style.padding = '10px';
+      warningEl.style.marginBottom = '10px';
+      warningEl.style.backgroundColor = '#ffd70020';
+      warningEl.style.border = '1px solid #ffd700';
+      warningEl.style.borderRadius = '4px';
+      warningEl.createEl('p', { 
+        text: `⚠️ Blacklisted tags will be removed: ${this.blacklistedTags.join(', ')}` 
+      });
     }
     
     if (this.suggestions.length === 0) {
@@ -390,13 +520,20 @@ class TagSuggestionModal extends Modal {
     
     const buttonContainer = contentEl.createEl('div', { cls: 'tag-suggestion-buttons' });
     
-    const applyButton = buttonContainer.createEl('button', { text: 'Apply Selected Tags' });
-    applyButton.addClass('mod-cta');
-    applyButton.addEventListener('click', async () => {
+    const addButton = buttonContainer.createEl('button', { text: 'Add tags' });
+    addButton.addClass('mod-cta');
+    addButton.addEventListener('click', async () => {
       const tagsToAdd = Array.from(this.selectedTags);
-      if (tagsToAdd.length > 0) {
-        await this.plugin.applyTags(this.file, tagsToAdd);
-        new Notice(`Added ${tagsToAdd.length} tags`);
+      if (tagsToAdd.length > 0 || this.blacklistedTags.length > 0) {
+        await this.plugin.applyTags(this.file, tagsToAdd, 'integrate');
+        const messages = [];
+        if (tagsToAdd.length > 0) {
+          messages.push(`Added ${tagsToAdd.length} tags`);
+        }
+        if (this.blacklistedTags.length > 0) {
+          messages.push(`removed ${this.blacklistedTags.length} blacklisted tags`);
+        }
+        new Notice(messages.join(', '));
       }
       this.close();
     });

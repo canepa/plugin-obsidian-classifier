@@ -3,7 +3,7 @@
   "name": "Auto Tagger",
   "version": "1.0.0",
   "minAppVersion": "0.15.0",
-  "description": "Automatically tag notes using Naive Bayes classifier trained on your existing tagged notes",
+  "description": "Suggest tags using semantic embeddings. Requires 40% word overlap (8+ distinctive words). Filters existing tags and synonyms.",
   "author": "Alessandro Canepa",
   "isDesktopOnly": false
 }

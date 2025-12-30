@@ -1,5 +1,5 @@
 import { App, Plugin, PluginSettingTab, Setting } from 'obsidian';
-import type { ClassifierData } from './classifier';
+import type { EmbeddingClassifierData } from './embedding-classifier';
 
 export interface AutoTaggerSettings {
   // Folder filtering
@@ -19,7 +19,7 @@ export interface AutoTaggerSettings {
   autoTagOnSave: boolean;
   
   // Classifier data
-  classifierData: ClassifierData | null;
+  classifierData: EmbeddingClassifierData | null;
 }
 
 export const DEFAULT_SETTINGS: AutoTaggerSettings = {
@@ -28,7 +28,7 @@ export const DEFAULT_SETTINGS: AutoTaggerSettings = {
   excludeFolders: [],
   whitelist: [],
   blacklist: [],
-  threshold: 0.1,
+  threshold: 0.3,
   maxTags: 5,
   autoTagOnSave: false,
   classifierData: null
@@ -50,13 +50,21 @@ export class AutoTaggerSettingTab extends PluginSettingTab {
   display(): void {
     const { containerEl } = this;
     containerEl.empty();
+    containerEl.addClass('auto-tagger-settings');
 
     containerEl.createEl('h2', { text: 'Auto Tagger Settings' });
+    
+    containerEl.createEl('p', { 
+      text: 'Configure how the embedding-based classifier learns from and suggests tags for your notes.',
+      cls: 'setting-item-description'
+    });
+
+    containerEl.createEl('h3', { text: 'Folder Scope' });
 
     // Folder Mode
     new Setting(containerEl)
       .setName('Folder mode')
-      .setDesc('Choose which folders to process')
+      .setDesc('Choose which folders to include in training and classification. Applies to both "Train classifier" and batch tagging operations.')
       .addDropdown(dropdown => dropdown
         .addOption('all', 'All folders')
         .addOption('include', 'Include specific folders')
@@ -104,10 +112,15 @@ export class AutoTaggerSettingTab extends PluginSettingTab {
 
     containerEl.createEl('h3', { text: 'Tag Filtering' });
 
+    containerEl.createEl('p', { 
+      text: 'Control which tags the classifier can suggest. Whitelist limits suggestions to specific tags; blacklist excludes tags from both training and suggestions.',
+      cls: 'setting-item-description'
+    });
+
     // Whitelist
     new Setting(containerEl)
       .setName('Tag whitelist')
-      .setDesc('Only suggest these tags (comma-separated). Leave empty to suggest all tags.')
+      .setDesc('Only suggest these tags (comma-separated). Leave empty to suggest all learned tags. Example: project, research, reference')
       .addTextArea(text => text
         .setPlaceholder('project, important, review')
         .setValue(this.plugin.settings.whitelist.join(', '))
@@ -122,7 +135,7 @@ export class AutoTaggerSettingTab extends PluginSettingTab {
     // Blacklist
     new Setting(containerEl)
       .setName('Tag blacklist')
-      .setDesc('Never suggest or train on these tags (comma-separated)')
+      .setDesc('Never suggest or train on these tags (comma-separated). Useful for workflow tags like todo, draft, private. Example: todo, draft, archive, private')
       .addTextArea(text => text
         .setPlaceholder('todo, draft, private')
         .setValue(this.plugin.settings.blacklist.join(', '))
@@ -182,13 +195,18 @@ export class AutoTaggerSettingTab extends PluginSettingTab {
     }
 
     containerEl.createEl('h3', { text: 'Classification Parameters' });
+    
+    containerEl.createEl('p', { 
+      text: 'Control tag suggestion filtering. The classifier uses two filters: (1) similarity threshold (embedding distance), and (2) word overlap (40% minimum - at least 8 of tag\'s 20 distinctive words must appear). Tags with <60% overlap need 25% higher similarity. Scoring: 70% overlap + 30% similarity.',
+      cls: 'setting-item-description'
+    });
 
     // Threshold
     new Setting(containerEl)
-      .setName('Confidence threshold')
-      .setDesc('Minimum confidence (0-1) for tag suggestions')
+      .setName('Similarity threshold')
+      .setDesc('Minimum embedding similarity (0.1-0.7). Works with 40% word overlap filter (8+ of 20 distinctive words). Tags with <60% overlap need +25% similarity. Recommended: 0.3-0.4.')
       .addSlider(slider => slider
-        .setLimits(0, 1, 0.05)
+        .setLimits(0.1, 0.7, 0.05)
         .setValue(this.plugin.settings.threshold)
         .setDynamicTooltip()
         .onChange(async (value) => {
@@ -223,6 +241,11 @@ export class AutoTaggerSettingTab extends PluginSettingTab {
         }));
 
     containerEl.createEl('h3', { text: 'Classifier Training' });
+    
+    containerEl.createEl('p', { 
+      text: 'Train the classifier on your tagged notes. Two-pass training: (1) builds vocabulary and document frequency statistics, (2) generates 1024-dimensional embeddings and caches each tag\'s top 20 distinctive words for filtering. Training takes 2-3 seconds for 300 notes.',
+      cls: 'setting-item-description'
+    });
 
     const stats = this.plugin.classifier?.getStats();
     if (stats && stats.totalDocs > 0) {
@@ -238,7 +261,7 @@ export class AutoTaggerSettingTab extends PluginSettingTab {
     // Train classifier button
     new Setting(containerEl)
       .setName('Train classifier')
-      .setDesc('Train the classifier on all your existing tagged notes')
+      .setDesc('Analyze all tagged notes in scope and build semantic embeddings for each tag. Retrain whenever you add significant new content or change folder/tag settings.')
       .addButton(button => button
         .setButtonText('Train Classifier')
         .setCta()
