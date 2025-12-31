@@ -36,7 +36,7 @@ export class EmbeddingClassifier {
    * Generate a simple embedding using TF-IDF-like approach
    * This is a lightweight alternative to transformers until we can properly integrate them
    */
-  private async generateEmbedding(text: string, normalize: boolean = true): Promise<number[]> {
+  private generateEmbedding(text: string, normalize: boolean = true): number[] {
     // Preprocess text
     const processed = this.preprocessText(text);
     const words = this.tokenize(processed);
