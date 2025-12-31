@@ -84,7 +84,7 @@ export default class AutoTaggerPlugin extends Plugin {
       this.app.vault.on('modify', (file) => {
         if (this.settings.autoTagOnSave && file instanceof TFile && file.extension === 'md') {
           if (this.shouldProcessFile(file)) {
-            this.autoTagFile(file);
+            void this.autoTagFile(file);
           }
         }
       })
@@ -320,9 +320,9 @@ export default class AutoTaggerPlugin extends Plugin {
         } else {
           // Execute for single collection
           if (operation === 'train') {
-            this.trainCollection(collectionId);
+            void this.trainCollection(collectionId);
           } else {
-            this.debugCollection(collectionId);
+            void this.debugCollection(collectionId);
           }
         }
       },
@@ -873,7 +873,7 @@ class CollectionSelectorModal extends Modal {
       });
       
       const allTitle = allItem.createEl('div', { cls: 'setting-item-name auto-tagger-collection-title' });
-      allTitle.textContent = 'All Collections';
+      allTitle.textContent = 'All collections';
       
       const allDesc = allItem.createEl('div', { cls: 'setting-item-description' });
       allDesc.textContent = `Execute operation on all ${this.collections.length} enabled collections`;

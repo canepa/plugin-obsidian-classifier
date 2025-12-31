@@ -144,12 +144,12 @@ export class AutoTaggerSettingTab extends PluginSettingTab {
     });
     introText.createEl('span', { text: 'Create ' });
     introText.createEl('strong', { text: 'Collections' });
-    introText.createEl('span', { text: ' To organize your notes with specialized classifiers. Each Collection has its own scope, tag filters, and trained classifier. When a note matches multiple Collections, suggestions are merged' });
+    introText.createEl('span', { text: ' To organize your notes with specialized classifiers. Each collection has its own scope, tag filters, and trained classifier. When a note matches multiple collections, suggestions are merged' });
     introText.createEl('br');
     introText.createEl('br');
     introText.createEl('span', { text: '💡 ' });
-    introText.createEl('strong', { text: 'Quick Start:' });
-    introText.createEl('span', { text: ' Click the "+ New Collection" button, configure scope and filters, then click "Train"' });
+    introText.createEl('strong', { text: 'Quick start:' });
+    introText.createEl('span', { text: ' Click the "+ new collection" button, configure scope and filters, then click "train"' });
 
     // Global Settings
     new Setting(containerEl)
@@ -276,11 +276,11 @@ export class AutoTaggerSettingTab extends PluginSettingTab {
           });
         
         // Update header and save on blur
-        text.inputEl.addEventListener('blur', async () => {
+        text.inputEl.addEventListener('blur', () => {
           // Update the header title
           const headerNameEl = headerSetting.nameEl;
           headerNameEl.textContent = collection.name;
-          await this.plugin.saveSettings();
+          void this.plugin.saveSettings();
         });
       });
 
@@ -344,7 +344,7 @@ export class AutoTaggerSettingTab extends PluginSettingTab {
         .setName('Exclude folders')
         .setDesc('Comma-separated list of folder paths')
         .addTextArea(text => text
-          .setPlaceholder('Archive, Templates')
+          .setPlaceholder('Archive, templates')
           .setValue(collection.excludeFolders.join(', '))
           .onChange(async (value) => {
             collection.excludeFolders = value
