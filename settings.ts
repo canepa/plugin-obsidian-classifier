@@ -144,7 +144,7 @@ export class AutoTaggerSettingTab extends PluginSettingTab {
     });
     introText.createEl('span', { text: 'Create ' });
     introText.createEl('strong', { text: 'Collections' });
-    introText.createEl('span', { text: ' to organize your notes with specialized classifiers. Each Collection has its own scope, tag filters, and trained classifier. When a note matches multiple Collections, suggestions are merged' });
+    introText.createEl('span', { text: ' To organize your notes with specialized classifiers. Each Collection has its own scope, tag filters, and trained classifier. When a note matches multiple Collections, suggestions are merged' });
     introText.createEl('br');
     introText.createEl('br');
     introText.createEl('span', { text: '💡 ' });
@@ -299,7 +299,7 @@ export class AutoTaggerSettingTab extends PluginSettingTab {
       });
     } else {
       collectionContainer.createEl('p', {
-        text: 'Not trained. Use the "Train" button below.',
+        text: 'Not trained. Use the "train" button below.',
         cls: 'setting-item-description auto-tagger-status'
       });
     }
@@ -328,7 +328,7 @@ export class AutoTaggerSettingTab extends PluginSettingTab {
         .setName('Include folders')
         .setDesc('Comma-separated list of folder paths')
         .addTextArea(text => text
-          .setPlaceholder('Folder1, Folder2/Subfolder')
+          .setPlaceholder('Folder1, folder2/subfolder')
           .setValue(collection.includeFolders.join(', '))
           .onChange(async (value) => {
             collection.includeFolders = value
@@ -362,9 +362,9 @@ export class AutoTaggerSettingTab extends PluginSettingTab {
 
     new Setting(collectionContainer)
       .setName('Tag whitelist')
-      .setDesc('Only suggest these tags (comma-separated). Leave empty for all learned tags')
+      .setDesc('Only suggest these tags (comma-separated), leave empty for all learned tags')
       .addTextArea(text => text
-        .setPlaceholder('Project, Important, Review')
+        .setPlaceholder('Project, important, review')
         .setValue(collection.whitelist.join(', '))
         .onChange(async (value) => {
           collection.whitelist = value
@@ -378,7 +378,7 @@ export class AutoTaggerSettingTab extends PluginSettingTab {
       .setName('Tag blacklist')
       .setDesc('Never suggest or train on these tags (comma-separated)')
       .addTextArea(text => text
-        .setPlaceholder('Todo, Draft, Private')
+        .setPlaceholder('Todo, draft, private')
         .setValue(collection.blacklist.join(', '))
         .onChange(async (value) => {
           collection.blacklist = value

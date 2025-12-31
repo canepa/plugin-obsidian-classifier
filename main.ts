@@ -508,7 +508,7 @@ export default class AutoTaggerPlugin extends Plugin {
     
     const applicableCollections = this.getApplicableCollections(file);
     if (applicableCollections.length === 0) {
-      new Notice('⚠️ File is not in scope of any enabled collection');
+      new Notice('File is not in scope of any enabled collection');
       return;
     }
     
@@ -599,7 +599,7 @@ export default class AutoTaggerPlugin extends Plugin {
     
     const applicableCollections = this.getApplicableCollections(file);
     if (applicableCollections.length === 0) {
-      new Notice('⚠️ File is not in scope of any enabled collection');
+      new Notice('File is not in scope of any enabled collection');
       return;
     }
     
@@ -873,7 +873,7 @@ class CollectionSelectorModal extends Modal {
       });
       
       const allTitle = allItem.createEl('div', { cls: 'setting-item-name auto-tagger-collection-title' });
-      allTitle.textContent = '🌐 All Collections';
+      allTitle.textContent = 'All Collections';
       
       const allDesc = allItem.createEl('div', { cls: 'setting-item-description' });
       allDesc.textContent = `Execute operation on all ${this.collections.length} enabled collections`;
