@@ -219,7 +219,8 @@ When a note matches multiple collections:
 - `npm run deploy` - Build and deploy to Obsidian vault
 - `npm run watch` - Build in development mode and deploy
 
-### Project Struc **collection-based architecture** where each collection has its own **embedding-based semantic classifier** with TF-IDF vector representations. When suggesting tags for a note, the plugin queries all applicable collections and merges their suggestions.
+### Project Structure
+**collection-based architecture** where each collection has its own **embedding-based semantic classifier** with TF-IDF vector representations. When suggesting tags for a note, the plugin queries all applicable collections and merges their suggestions.
 
 ### Collection Matching
 1. **Scope Evaluation**: For each enabled collection, check if the note's path matches the collection's folder scope
