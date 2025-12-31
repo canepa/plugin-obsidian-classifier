@@ -248,7 +248,7 @@ When a note matches multiple collections:
 - **Focused Training**: Each classifier learns from smaller, more relevant datasets
 - **Overlap Handling**: Notes can benefit from multiple collections simultaneously
 5. **User Review**: Show suggestions with collection indicators in interactive modal
-```
+
 
 ## How It Works
 
