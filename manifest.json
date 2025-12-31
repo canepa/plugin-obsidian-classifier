@@ -1,9 +1,9 @@
 {
   "id": "obsidian-auto-tagger",
   "name": "Auto Tagger",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "minAppVersion": "0.15.0",
-  "description": "Suggest tags using semantic embeddings. Requires 40% word overlap (8+ distinctive words). Filters existing tags and synonyms.",
+  "description": "Multi-collection semantic tag suggestions. Create specialized classifiers for different note types with independent training and filtering.",
   "author": "Alessandro Canepa",
   "isDesktopOnly": false
 }

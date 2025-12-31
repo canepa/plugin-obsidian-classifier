@@ -1,7 +1,7 @@
 {
   "name": "obsidian-auto-tagger",
-  "version": "1.0.0",
-  "description": "Auto-tag notes using Naive Bayes classifier",
+  "version": "2.0.0",
+  "description": "Multi-collection semantic tag suggestions with embedding-based classifiers",
   "main": "main.js",
   "scripts": {
     "dev": "node esbuild.config.mjs",
@@ -13,7 +13,10 @@
     "obsidian",
     "plugin",
     "tagger",
-    "classifier"
+    "classifier",
+    "collections",
+    "semantic",
+    "embeddings"
   ],
   "author": "Alessandro Canepa",
   "license": "MIT",

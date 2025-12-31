@@ -20,6 +20,17 @@ export class EmbeddingClassifier {
   private docFrequency: Map<string, number> = new Map(); // Word -> number of docs containing it
   private trainingBuffer: Array<{text: string, tags: string[]}> = []; // For two-pass training
   private tagDistinctiveWords: Record<string, string[]> = {}; // Cache of distinctive words per tag
+  private debugEnabled: boolean = false;
+
+  setDebugEnabled(enabled: boolean) {
+    this.debugEnabled = enabled;
+  }
+
+  private debug(...args: any[]) {
+    if (this.debugEnabled) {
+      console.log(...args);
+    }
+  }
 
   /**
    * Generate a simple embedding using TF-IDF-like approach
@@ -138,7 +149,7 @@ export class EmbeddingClassifier {
    * Finalize training by processing buffered data with complete vocabulary statistics
    */
   async finalizeTraining(): Promise<void> {
-    console.log(`[EmbeddingClassifier] Processing ${this.trainingBuffer.length} documents with vocabulary of ${this.docFrequency.size} words...`);
+    this.debug(`[EmbeddingClassifier] Processing ${this.trainingBuffer.length} documents with vocabulary of ${this.docFrequency.size} words...`);
     
     // Second pass: generate embeddings with complete IDF statistics and accumulate for each tag
     for (const { text, tags } of this.trainingBuffer) {
@@ -182,7 +193,7 @@ export class EmbeddingClassifier {
     }
     
     // Build distinctive word cache for each tag before clearing training buffer
-    console.log('[EmbeddingClassifier] Building distinctive word cache...');
+    this.debug('[EmbeddingClassifier] Building distinctive word cache...');
     for (const tag in this.tagEmbeddings) {
       this.tagDistinctiveWords[tag] = this.buildDistinctiveWords(tag);
     }
@@ -190,7 +201,7 @@ export class EmbeddingClassifier {
     // Clear training buffer to save memory
     this.trainingBuffer = [];
     
-    console.log('[EmbeddingClassifier] Training finalized:', Object.keys(this.tagEmbeddings).length, 'tags');
+    this.debug('[EmbeddingClassifier] Training finalized:', Object.keys(this.tagEmbeddings).length, 'tags');
   }
   
   /**
@@ -236,7 +247,7 @@ export class EmbeddingClassifier {
     existingTags: string[] = []
   ): Promise<Array<{tag: string, probability: number}>> {
     if (Object.keys(this.tagEmbeddings).length === 0) {
-      console.log('[EmbeddingClassifier] No tags trained');
+      this.debug('[EmbeddingClassifier] No tags trained');
       return [];
     }
 
@@ -256,7 +267,7 @@ export class EmbeddingClassifier {
     // Normalize existing tags to detect synonyms
     const existingNormalized = new Set(existingTags.map(t => this.normalizeTag(t)));
     
-    console.log('[EmbeddingClassifier] Evaluating', tags.length, 'tags');
+    this.debug('[EmbeddingClassifier] Evaluating', tags.length, 'tags');
     
     const similarities: Array<{tag: string, probability: number, overlap: number}> = [];
     
@@ -295,7 +306,7 @@ export class EmbeddingClassifier {
       return scoreB - scoreA;
     });
     
-    console.log('[EmbeddingClassifier] Top 5 results:', 
+    this.debug('[EmbeddingClassifier] Top 5 results:', 
       similarities.slice(0, 5).map(r => `${r.tag}: ${(r.probability * 100).toFixed(2)}% (overlap: ${(r.overlap * 100).toFixed(0)}%)`)
     );
     

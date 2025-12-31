@@ -1,17 +1,19 @@
 # Auto Tagger Plugin for Obsidian
 
-Automatically suggest and apply tags to your notes using an embedding-based semantic classifier trained on your existing tagged notes.
+Automatically suggest and apply tags to your notes using multiple embedding-based semantic classifiers, each trained on different collections of your notes.
 
 ## Features
 
+- 🗂️ **Collection-Based Organization** - Create multiple collections, each with its own scope, filters, and trained classifier
 - 🤖 **Smart Tag Suggestions** - Uses embedding-based semantic classifier with TF-IDF for multi-label document understanding
-- 🎯 **Discriminative Word Filtering** - Only suggests tags when document contains their distinctive words (15% minimum overlap)
-- 🔄 **Synonym Detection** - Avoids suggesting tags already present or their synonyms (e.g., won't suggest "ai" if "artificial-intelligence" exists)
-- 📋 **Tag Management** - Whitelist/blacklist tags, view all tags with document counts and quick blacklist actions
-- ⚙️ **Flexible Configuration** - Control which folders to process, similarity thresholds, and maximum tags
+- 🎯 **Discriminative Word Filtering** - Only suggests tags when document contains their distinctive words (40% minimum overlap)
+- 🔄 **Multi-Classifier Aggregation** - Combines suggestions from all applicable collections for comprehensive tagging
+- 🌐 **Batch Operations** - Train or debug all collections at once with "All Collections" option
+- 📋 **Tag Management** - Per-collection whitelist/blacklist, view all tags with document counts
+- ⚙️ **Flexible Configuration** - Control scope, similarity thresholds, and maximum tags per collection
 - 🚫 **Existing Tag Filtering** - Never suggests tags you've already added to a note
 - 🔄 **Two Tagging Modes** - Integrate (add new tags) or Overwrite (replace all tags)
-- 🎨 **Clean UI** - Interactive modal for reviewing and selecting suggested tags
+- 🎨 **Clean UI** - Interactive modal for reviewing and selecting suggested tags with collection indicators
 
 ## Installation
 
@@ -64,84 +66,145 @@ $pluginDir = "C:\path\to\your\vault\.obsidian\plugins\obsidian-auto-tagger"
 ### Initial Setup
 
 1. Go to **Settings** → **Auto Tagger**
-2. Configure folder mode:
-   - **All folders** - Process all notes
-   - **Include specific** - Only process notes in specified folders
-   - **Exclude specific** - Process all notes except those in specified folders
-3. Set up **whitelist** (optional) - Only suggest these tags
-4. Set up **blacklist** - Never train on or suggest these tags
-5. Click **Train Classifier** to train on your existing tagged notes
+2. Click **+ New Collection** to create your first collection
+3. Configure each collection:
+   - **Name** - Give it a descriptive name (e.g., "Research Papers", "Work Notes")
+   - **Folder scope** - Choose which folders this collection covers
+     - **All folders** - Process all notes
+     - **Include specific** - Only process notes in specified folders
+     - **Exclude specific** - Process all notes except those in specified folders
+   - **Tag filters** - Set up whitelist/blacklist for this collection
+   - **Classification parameters** - Adjust threshold and max tags
+4. Click **Train** to train the classifier on existing tagged notes in scope
+5. Repeat for additional collections if needed
+
+### Working with Collections
+
+**Collections allow you to:**
+- Have specialized classifiers for different areas (e.g., work vs personal, technical vs creative)
+- Apply different tag vocabularies to different note types
+- Keep tag suggestions relevant by training on focused subsets of notes
+
+**Example Setup:**
+```
+Collection: "Technical Notes"
+  Scope: include (programming, tutorials, documentation)
+  Whitelist: python, javascript, api, database, git, debugging
+  Blacklist: todo, draft
+  
+Collection: "Research Papers"
+  Scope: include (research, papers)
+  Whitelist: machine-learning, nlp, computer-vision, dataset
+  Blacklist: todo, draft
+  
+Collection: "General Knowledge"
+  Scope: all
+  Blacklist: todo, draft, private
+```
 
 ### Commands
 
 Access via Command Palette (`Ctrl/Cmd + P`):
 
-- **Train classifier on existing notes** - Train the AI on your tagged notes
-- **Suggest tags for current note** - Get tag suggestions for the active note
-- **Tag all notes in scope** - Automatically tag all notes based on settings
-- **Tag all notes in current folder** - Tag only notes in the current folder
+- **Train classifier on existing notes** - Select a collection or "All Collections" to train
+- **Debug classifier (show stats)** - View statistics for a collection or all collections
+- **Suggest tags for current note** - Get tag suggestions from all applicable collections
+- **Auto-tag current note** - Automatically apply suggestions with integration or overwrite mode
+- **Batch tag all notes** - Tag all notes based on collection scopes
+- **Batch tag folder** - Tag only notes in the current folder
 
 ### Settings Overview
 
-#### Folder Configuration
-- **Folder mode** - Choose which folders to process:
+#### Global Settings
+- **Auto-tag on save** - Automatically apply tags from applicable collections when saving notes
+
+#### Collections Management
+- **Add Collection** - Create a new collection with its own configuration
+- **Enable/Disable** - Toggle collections on/off without deleting them
+- **Duplicate** - Copy settings from existing collection (training data not copied)
+- **Delete** - Remove collection permanently
+
+#### Per-Collection Settings
+
+**Folder Scope:**
+- **Folder mode** - Choose which folders this collection processes:
   - **All folders**: Process every markdown file in your vault
-  - **Include specific**: Only process notes in specified folders (useful for focusing on main content)
-  - **Exclude specific**: Process all notes except those in specified folders (useful for skipping templates/archives)
+  - **Include specific**: Only process notes in specified folders (focus on specific content)
+  - **Exclude specific**: Process all notes except those in specified folders (skip templates/archives)
 - **Include/Exclude folders** - Comma-separated folder paths (e.g., `Projects, Work/Active`)
-
-#### Tag Filtering
-- **Tag whitelist** - Only suggest these tags (leave empty to suggest all learned tags)
-  - Useful when you want to focus on a core set of tags
+**Tag Filtering:**
+- **Tag whitelist** - Only suggest these tags from this collection (leave empty to suggest all learned tags)
+  - Useful when you want to focus on a core set of tags per collection
   - The classifier will still learn all tags during training but only suggest whitelisted ones
-- **Tag blacklist** - Never train on or suggest these tags
+- **Tag blacklist** - Never train on or suggest these tags in this collection
   - Filters out meta tags like "todo", "draft", "private" during both training and classification
-  - Blacklisted tags are completely ignored by the classifier
-- **All Tags in Classifier** - View all trained tags with document counts and quick blacklist actions
+  - Blacklisted tags are completely ignored by this collection's classifier
+- **All Tags in Collection** - View all trained tags with document counts and quick blacklist actions (collapsible)
 
-#### Classification Parameters
-- **Similarity threshold** (0.1-0.7) - Minimum similarity score for tag suggestions
+**Classification Parameters:**
+- **Similarity threshold** (0.1-0.7) - Minimum similarity score for tag suggestions from this collection
   - Default: 0.3 (30%)
   - **0.1-0.2**: Very liberal (many suggestions)
   - **0.2-0.3**: Liberal (good for exploration)
   - **0.3-0.4**: Balanced (recommended - good precision/recall)
   - **0.4-0.5**: Conservative (high confidence only)
   - **0.5-0.7**: Very strict (near-perfect matches)
-  - Works in combination with 15% word overlap requirement
-- **Maximum tags** (1-10) - Max number of tags to suggest per note
+  - Works in combination with 40% word overlap requirement
+- **Maximum tags** (1-10) - Max number of tags to suggest per note from this collection
   - Default: 5
   - Limits suggestions even if more tags exceed the threshold
 
-#### Auto-Tagging
-- **Auto-tag on save** - Automatically apply tags when saving notes
-  - Opens modal with suggestions after each save
-  - Only triggers for notes in scope (based on folder settings)
+**Actions:**
+- **Train** - Train this collection's classifier on notes in scope
+- **Debug Stats** - View detailed statistics for this collection
 
-#### Classifier Training
-- **Train Classifier** button - Train on all existing tagged notes
-- **Clear** button - Reset all training data
+### Multi-Collection Workflow
 
-### Recommended Workflow
-
-1. **Set up tag filters**:
+When a note matches multiple collections:
+1. All applicable collections' classifiers are queried
+2. Tag suggestions are merged, keeping the highest probability for each tag
+3. Tag suggestions show which collection they came from: `machine-learning (85.2%) [Technical Notes]`
+4. BlCreate your first collection**:
    ```
-   Whitelist: project, important, review, tutorial, reference
-   Blacklist: todo, draft, private, archive
+   Name: General Notes
+   Scope: All folders
+   Blacklist: todo, draft, private
    ```
 
-2. **Configure folders**:
-   - Use "Include" mode with your main content folders
-   - Or use "Exclude" mode to skip templates and archives
+2. **Train and test**:
+   - Click "Train" for the collection
+   - Open an untagged note
+   - Run "Suggest tags for current note"
+   - Review suggestions
 
-3. **Train the classifier**:
-   - Click "Train Classifier" in settings
-   - Wait for training to complete (shows document count)
+3. **Add specialized collections** as needed:
+   ```
+   Collection: "Technical Docs"
+     Scope: include (programming, tutorials)
+     Whitelist: python, javascript, api, database, git
+     Blacklist: todo, draft
+   
+   Collection: "Research"
+     Scope: include (papers, research, notes/academic)
+     Whitelist: machine-learning, nlp, statistics, dataset
+     Blacklist: todo, draft
+   ```
 
-4. **Use tag suggestions**:
-   - Open a note
-   - Run "Suggest tags for current note" command
+4. **Train all collections**:
+   - Run "Train classifier on existing notes"
+   - Select "🌐 All Collections"
+   - Wait for batch training to complete
+
+5. **Use tag suggestions**:
+   - Open any note
+   - Run "Suggest tags for current note"
+   - See suggestions from all applicable collections with source indicators
    - Review and select tags in the modal
-   - Click "Apply Selected Tags"
+
+6. **Batch operations**:
+   - Train all: Select "All Collections" when training
+   - Debug all: Select "All Collections" to see stats for all collections
+   - Tag notes: Use batch tagging commands
 
 5. **Batch tag notes** (optional):
    - Run "Tag all notes in scope" to process multiple notes
@@ -156,20 +219,35 @@ Access via Command Palette (`Ctrl/Cmd + P`):
 - `npm run deploy` - Build and deploy to Obsidian vault
 - `npm run watch` - Build in development mode and deploy
 
-### Project Structure
+### Project Struc **collection-based architecture** where each collection has its own **embedding-based semantic classifier** with TF-IDF vector representations. When suggesting tags for a note, the plugin queries all applicable collections and merges their suggestions.
 
-```
-plugin-obsidian-classifier/
-├── main.ts                  # Main plugin file
-├── embedding-classifier.ts  # Embedding-based semantic classifier
-├── settings.ts              # Settings tab and interface
-├── modal.ts                 # Tag suggestion modal UI
-├── manifest.json            # Plugin manifest
-├── package.json             # NPM dependencies and scripts
-├── esbuild.config.mjs       # Build configuration
-├── tsconfig.json            # TypeScript configuration
-├── deploy.ps1               # Deployment script
-└── styles.css               # Plugin styles
+### Collection Matching
+1. **Scope Evaluation**: For each enabled collection, check if the note's path matches the collection's folder scope
+2. **Applicable Collections**: Gather all collections that include the note in their scope
+3. **Multi-Classifier Query**: Query each applicable collection's classifier for tag suggestions
+4. **Aggregation**: Merge suggestions, keeping the highest probability score for each tag
+5. **Source Tracking**: Display which collection suggested each tag in the UI
+
+### Training Phase (Per Collection, Two-Pass Process)
+1. **First Pass - Vocabulary Building**: Scans all tagged notes in scope to build complete document frequency statistics
+2. **Second Pass - Embedding Generation**: Creates 1024-dimensional vector embeddings for each document using:
+   - **TF (Term Frequency)**: How often words appear in the document (with BM25 saturation)
+   - **IDF (Inverse Document Frequency)**: How rare/distinctive each word is across all documents
+### Key Advantages
+- **Specialized Classifiers**: Each collection learns from relevant notes only, improving accuracy
+- **Multi-label Support**: Naturally handles documents with multiple relevant tags (no "winner takes all")
+- **Semantic Understanding**: Captures meaning through word co-occurrence patterns
+- **Better Generalization**: Related words contribute to similar dimensions
+- **Flexible Organization**: Different tag vocabularies for different content types
+- **Reduced Noise**: Hash collision reduction and BM25 saturation prevent common words from dominating
+
+### Collection Benefits
+- **Domain Separation**: Technical notes don't interfere with creative writing suggestions
+- **Specialized Vocabularies**: Work tags stay separate from personal tags
+- **Scalability**: Add new collections without retraining everything
+- **Focused Training**: Each classifier learns from smaller, more relevant datasets
+- **Overlap Handling**: Notes can benefit from multiple collections simultaneously
+5. **User Review**: Show suggestions with collection indicators in interactive modal
 ```
 
 ## How It Works
@@ -206,21 +284,30 @@ The plugin uses an **embedding-based semantic classifier** with TF-IDF vector re
 - **Semantic Understanding**: Captures meaning through word co-occurrence patterns, not just individual word probabilities
 - **Better Generalization**: Related words contribute to similar dimensions, helping recognize content variations
 - **Reduced Noise**: Hash collision reduction and sublinear TF scaling prevent common words from dominating
+Collections Strategy
+- **Start simple**: Begin with one general collection covering all folders
+- **Add specialized collections** as your vault grows and themes emerge
+- **Overlap is OK**: Collections can cover overlapping folders - suggestions will be merged
+- **Enable/disable**: Toggle collections on/off to test different configurations without deleting them
+- **Use "All Collections"**: When training, select "All Collections" to update everything at once
 
-### Tag Behavior
-- **Existing tags ARE filtered during classification**: The classifier automatically excludes tags already present in the document
-- **Synonym detection**: Tags with similar normalized forms (spaces/dashes removed) are considered duplicates
-  - Example: "artificial-intelligence", "artificial_intelligence", and "artificialintelligence" are all normalized to "ai"
-- **Discriminative word filtering**: Tags must have at least 40% word overlap with their distinctive vocabulary
-  - Each tag's distinctive words are the top 20 rarest words (high IDF) from its training documents
-  - Tags with <60% overlap need significantly higher similarity scores (25% boost required)
-  - Prevents suggesting technical tags for non-technical content
-- **Blacklisted tags**: Excluded from both training and suggestions
-- **Integrate mode**: Adds new suggested tags while preserving existing ones (avoids duplicates)
-- **Overwrite mode**: Replaces all existing tags with suggestions
+### Training
+- **Start with 50+ tagged notes** per collection for each major tag category
+- **Use consistent, meaningful tags** - classifiers learn semantic patterns from your tagging
+- **Train per collection** or use "All Collections" option for batch training
+- **Retrain regularly** as you add more tagged notes - classifiers improve with more examples
+- **Specialized training**: Collections trained on focused content produce more accurate suggestions
+Per-collection thresholds**: Adjust threshold independently for each collection
+- **Conservative collections**: Use 0.4-0.5 for high-precision collections
+- **Liberal collections**: Use 0.2-0.3 for exploratory collections
+- **Check console logs** (Ctrl+Shift+I) to see similarity scores and word overlap percentages
+- **Word overlap is critical**: Tags need 40%+ overlap for reliable suggestions
 
-## Tips
-
+### Multi-Collection Optimization
+- **Complementary collections**: Create collections with different tag vocabularies for better coverage
+- **Hierarchical collections**: Have a general collection + specialized collections for specific areas
+- **Debug all collections**: Use "Debug classifier" → "All Collections" to see stats at a glance
+- **Batch operations**: Train all collections together to save time
 ### Training
 - **Start with 50+ tagged notes** for each major tag category for best accuracy
 - **Use consistent, meaningful tags** - the classifier learns semantic patterns from your existing tagging
@@ -229,29 +316,36 @@ The plugin uses an **embedding-based semantic classifier** with TF-IDF vector re
 
 ### Tag Management
 - **Use the whitelist** to focus on your most important tags (project-specific, content categories)
-- **Use the blacklist** to exclude meta tags ("todo", "draft", "private", workflow tags)
-- **Review tag suggestions** before applying - the classifier is a tool to help, not replace your judgment
-- **Synonym awareness**: The classifier treats "ai", "artificial-intelligence", and "artificial_intelligence" as the same tag
+- No collections available**
+- Go to Settings → Auto Tagger → Click "+ New Collection"
+- Configure and train your first collection
+- Existing settings from older versions are automatically migrated to a "Default Collection"
 
-### Threshold Tuning
-- **Getting too many suggestions?** Increase threshold to 0.4-0.5
-- **Getting too few suggestions?** Decrease threshold to 0.2-0.25
-- **Check console logs** (Ctrl+Shift+I) to see similarity scores AND word overlap percentages
-- **Word overlap is critical**: Tags need 30%+ overlap; tags with <50% overlap need extra high similarity
+**Collection selector appears empty**
+- Make sure at least one collection is enabled (toggle switch)
+- Check that collections have been trained (click "Train" button)
+- Verify collections have notes in their scope
 
-### Multi-Label Documents
-- The embedding classifier excels at documents with multiple topics (e.g., "AI + Management" articles)
-- Expect relevant tags to score 40-70% similarity with 50-100% word overlap
-- Irrelevant tags are filtered by low word overlap (<40%) or need much higher similarity
-- Tags need at least 8 of their 20 distinctive words present (40% threshold)
+**Getting no suggestions**
+- Ensure the note is in scope of at least one enabled collection
+- Check that collections are trained (go to Settings → Auto Tagger)
+- Verify tags aren't all blacklisted in applicable collections
+- Check console logs (Ctrl+Shift+I) for word overlap details
 
-### Performance
-- **Vocabulary size**: With ~20,000 unique words, you'll see ~19 words per dimension (reduced collisions)
-- **Training time**: ~2-3 seconds for 300 notes (includes vocabulary building + distinctive word caching)
-- **Classification speed**: Near-instant (<100ms per note)
-- **Memory efficient**: Distinctive word cache uses ~20 words per tag instead of storing all training data
+**Getting irrelevant suggestions**
+- Adjust per-collection threshold to be more conservative (0.4-0.5)
+- Check which collection is suggesting the tag (shown in brackets)
+- Add unwanted tags to that collection's blacklist
+- Consider narrowing the collection's scope to more relevant folders
 
-## Troubleshooting
+**"All Collections" option doesn't appear**
+- You need at least 2 enabled collections for this option
+- Check that multiple collections are enabled (not just created)
+
+**Want to reset everything**
+- Delete all collections and create new ones
+- Or disable collections you don't want and create new ones
+- Training data is stored per collection, so deleting removes it
 
 **Plugin doesn't appear in Obsidian**
 - Make sure manifest.json is present and valid

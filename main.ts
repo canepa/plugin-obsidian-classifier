@@ -1,45 +1,58 @@
 import { App, Modal, Notice, Plugin, TFile, TFolder, parseYaml, stringifyYaml } from 'obsidian';
 import { EmbeddingClassifier } from './embedding-classifier';
-import { AutoTaggerSettings, AutoTaggerSettingTab, DEFAULT_SETTINGS } from './settings';
+import { AutoTaggerSettings, AutoTaggerSettingTab, DEFAULT_SETTINGS, migrateSettings, Collection } from './settings';
 
 export default class AutoTaggerPlugin extends Plugin {
   settings: AutoTaggerSettings;
-  classifier: EmbeddingClassifier;
+  classifiers: Map<string, EmbeddingClassifier> = new Map();
+
+  private debug(...args: any[]) {
+    if (this.settings?.debugToConsole) {
+      console.log(...args);
+    }
+  }
 
   async onload() {
     console.log('[Auto Tagger] Loading plugin...');
     
     await this.loadSettings();
     
-    this.classifier = new EmbeddingClassifier();
-    if (this.settings.classifierData) {
-      try {
-        this.classifier.import(this.settings.classifierData);
-        const stats = this.classifier.getStats();
-        console.log(`[Auto Tagger] Loaded classifier with ${stats.totalTags} tags trained on ${stats.totalDocs} documents`);
-      } catch (e) {
-        console.error('[Auto Tagger] Failed to load classifier data:', e);
+    // Load all collection classifiers
+    for (const collection of this.settings.collections) {
+      if (collection.classifierData) {
+        const classifier = new EmbeddingClassifier();
+        classifier.setDebugEnabled(this.settings.debugToConsole);
+        try {
+          classifier.import(collection.classifierData);
+          this.classifiers.set(collection.id, classifier);
+          const stats = classifier.getStats();
+          this.debug(`[Auto Tagger] Loaded classifier for "${collection.name}" with ${stats.totalTags} tags trained on ${stats.totalDocs} documents`);
+        } catch (e) {
+          console.error(`[Auto Tagger] Failed to load classifier for "${collection.name}":`, e);
+        }
       }
-    } else {
-      console.log('[Auto Tagger] No trained classifier found. Use "Train classifier" command to get started.');
+    }
+    
+    if (this.settings.collections.length === 0) {
+      this.debug('[Auto Tagger] No collections found. Create one in settings to get started.');
     }
 
     // Add ribbon icon
-    this.addRibbonIcon('tag', 'Auto Tagger', () => {
+    this.addRibbonIcon('tag', 'Auto Tagger: Suggest tags', () => {
       this.showTagSuggestions();
     });
 
     // Add commands
     this.addCommand({
       id: 'train-classifier',
-      name: 'Train classifier on existing notes',
-      callback: () => this.trainClassifier()
+      name: 'Train classifier (select collection or all)',
+      callback: () => this.showCollectionSelector('train')
     });
 
     this.addCommand({
       id: 'debug-classifier',
-      name: 'Debug classifier (show stats)',
-      callback: () => this.debugClassifier()
+      name: 'Debug classifier stats (select collection or all)',
+      callback: () => this.showCollectionSelector('debug')
     });
 
     this.addCommand({
@@ -50,13 +63,13 @@ export default class AutoTaggerPlugin extends Plugin {
 
     this.addCommand({
       id: 'auto-tag-current-integrate',
-      name: 'Auto-tag current note',
+      name: 'Auto-tag current note (integrate mode)',
       callback: () => this.autoTagCurrentNote('integrate')
     });
 
     this.addCommand({
       id: 'tag-all-notes-integrate',
-      name: 'Batch tag all notes',
+      name: 'Batch tag all notes (from all collections)',
       callback: () => this.tagAllNotes('integrate')
     });
 
@@ -80,11 +93,12 @@ export default class AutoTaggerPlugin extends Plugin {
     // Settings tab
     this.addSettingTab(new AutoTaggerSettingTab(this.app, this));
     
-    console.log('[Auto Tagger] Plugin loaded successfully');
+    this.debug('[Auto Tagger] Plugin loaded successfully');
   }
 
   async loadSettings() {
-    this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+    const data = await this.loadData();
+    this.settings = Object.assign({}, DEFAULT_SETTINGS, data ? migrateSettings(data) : DEFAULT_SETTINGS);
   }
 
   async saveSettings() {
@@ -92,23 +106,33 @@ export default class AutoTaggerPlugin extends Plugin {
   }
 
   /**
-   * Check if a file should be processed based on folder settings
+   * Get collections that apply to a given file
    */
-  shouldProcessFile(file: TFile): boolean {
+  getApplicableCollections(file: TFile): Collection[] {
+    return this.settings.collections.filter(collection => {
+      if (!collection.enabled) return false;
+      return this.shouldProcessFileForCollection(file, collection);
+    });
+  }
+
+  /**
+   * Check if a file should be processed for a specific collection
+   */
+  shouldProcessFileForCollection(file: TFile, collection: Collection): boolean {
     const filePath = file.path;
     
-    if (this.settings.folderMode === 'all') {
+    if (collection.folderMode === 'all') {
       return true;
     }
     
-    if (this.settings.folderMode === 'include') {
-      return this.settings.includeFolders.some(folder => 
+    if (collection.folderMode === 'include') {
+      return collection.includeFolders.some(folder => 
         filePath.startsWith(folder + '/') || filePath.startsWith(folder + '\\')
       );
     }
     
-    if (this.settings.folderMode === 'exclude') {
-      return !this.settings.excludeFolders.some(folder => 
+    if (collection.folderMode === 'exclude') {
+      return !collection.excludeFolders.some(folder => 
         filePath.startsWith(folder + '/') || filePath.startsWith(folder + '\\')
       );
     }
@@ -117,10 +141,35 @@ export default class AutoTaggerPlugin extends Plugin {
   }
 
   /**
-   * Get all files in scope
+   * Get all files in scope for a collection
+   */
+  getFilesInScopeForCollection(collection: Collection): TFile[] {
+    return this.app.vault.getMarkdownFiles().filter(file => 
+      this.shouldProcessFileForCollection(file, collection)
+    );
+  }
+
+  /**
+   * Legacy method for backward compatibility
+   */
+  shouldProcessFile(file: TFile): boolean {
+    // Check if file applies to any enabled collection
+    return this.getApplicableCollections(file).length > 0;
+  }
+
+  /**
+   * Legacy method for backward compatibility
    */
   getFilesInScope(): TFile[] {
-    return this.app.vault.getMarkdownFiles().filter(file => this.shouldProcessFile(file));
+    // Get all files that belong to at least one enabled collection
+    const filesSet = new Set<TFile>();
+    for (const collection of this.settings.collections) {
+      if (collection.enabled) {
+        const files = this.getFilesInScopeForCollection(collection);
+        files.forEach(f => filesSet.add(f));
+      }
+    }
+    return Array.from(filesSet);
   }
 
   /**
@@ -144,9 +193,9 @@ export default class AutoTaggerPlugin extends Plugin {
   }
 
   /**
-   * Get tags from frontmatter, filtering blacklist
+   * Get tags from frontmatter, filtering blacklist for a specific collection
    */
-  getTagsFromFrontmatter(frontmatter: any): string[] {
+  getTagsFromFrontmatter(frontmatter: any, collection: Collection): string[] {
     let tags: string[] = [];
     
     if (Array.isArray(frontmatter.tags)) {
@@ -156,96 +205,294 @@ export default class AutoTaggerPlugin extends Plugin {
     }
     
     // Filter out blacklisted tags
-    return tags.filter(tag => !this.settings.blacklist.includes(tag));
+    return tags.filter(tag => !collection.blacklist.includes(tag));
   }
 
   /**
-   * Train the classifier on existing tagged notes
+   * Train a specific collection's classifier
    */
-  async trainClassifier(): Promise<void> {
-    const notice = new Notice('Training embedding classifier on tagged notes...', 0);
+  async trainCollection(collectionId: string): Promise<void> {
+    const collection = this.settings.collections.find(c => c.id === collectionId);
+    if (!collection) {
+      new Notice('Collection not found');
+      return;
+    }
+
+    const notice = new Notice(`Training classifier for "${collection.name}"...`, 0);
     
-    this.classifier.reset();
-    
-    const files = this.getFilesInScope();
+    const classifier = new EmbeddingClassifier();
+    classifier.setDebugEnabled(this.settings.debugToConsole);
+    const files = this.getFilesInScopeForCollection(collection);
     const taggedFiles: TFile[] = [];
     
     // Train on explicitly tagged notes
     for (const file of files) {
       const { frontmatter, content } = await this.parseFile(file);
-      const tags = this.getTagsFromFrontmatter(frontmatter);
+      const tags = this.getTagsFromFrontmatter(frontmatter, collection);
       
       if (tags.length > 0) {
-        await this.classifier.train(content, tags);
+        await classifier.train(content, tags);
         taggedFiles.push(file);
       }
     }
     
-    // Finalize training (average and normalize embeddings)
-    await this.classifier.finalizeTraining();
+    // Finalize training
+    await classifier.finalizeTraining();
     
-    console.log(`[Training] Trained on ${taggedFiles.length} tagged notes`);
+    this.debug(`[Training] Collection "${collection.name}": trained on ${taggedFiles.length} tagged notes`);
     
     // Save classifier data
-    this.settings.classifierData = this.classifier.export();
+    collection.classifierData = classifier.export();
+    collection.lastTrained = Date.now();
+    this.classifiers.set(collectionId, classifier);
     await this.saveSettings();
     
     notice.hide();
     
-    const stats = this.classifier.getStats();
+    const stats = classifier.getStats();
     const trainingMsg = `Training complete: ${taggedFiles.length} notes (${stats.totalTags} unique tags)`;
     
-    console.log(`[EmbeddingClassifier] ${trainingMsg}`);
+    this.debug(`[Collection: ${collection.name}] ${trainingMsg}`);
     new Notice(trainingMsg);
   }
 
   /**
-   * Debug classifier information
+   * Train all enabled collections
    */
-  debugClassifier(): void {
-    const stats = this.classifier.getStats();
-    const file = this.app.workspace.getActiveFile();
+  async trainAllCollections(): Promise<void> {
+    const enabledCollections = this.settings.collections.filter(c => c.enabled);
     
-    // Get all known tags from the classifier
-    const knownTags = this.classifier.getAllTags();
+    if (enabledCollections.length === 0) {
+      new Notice('No enabled collections to train.');
+      return;
+    }
+
+    const notice = new Notice(`Training ${enabledCollections.length} collections...`, 0);
+    let successCount = 0;
     
-    let message = `Classifier Stats:\n`;
-    message += `- Trained on: ${stats.totalDocs} documents\n`;
-    message += `- Unique tags: ${stats.totalTags}\n`;
-    message += `- Known tags: ${knownTags.join(', ')}\n`;
-    message += `- Threshold: ${this.settings.threshold}\n`;
-    message += `- Max tags: ${this.settings.maxTags}\n`;
-    message += `- Whitelist: ${this.settings.whitelist.length > 0 ? this.settings.whitelist.join(', ') : 'none'}\n`;
-    message += `- Blacklist: ${this.settings.blacklist.length > 0 ? this.settings.blacklist.join(', ') : 'none'}\n`;
-    
-    if (file) {
-      message += `\nCurrent file: ${file.basename}\n`;
-      message += `Open the console (Ctrl+Shift+I) to see detailed classification logs.`;
+    for (const collection of enabledCollections) {
+      try {
+        await this.trainCollection(collection.id);
+        successCount++;
+      } catch (e) {
+        console.error(`Failed to train collection "${collection.name}":`, e);
+      }
     }
     
-    console.log(message);
-    const exportedData = this.classifier.export();
-    console.log('Tag counts:', exportedData.tagDocCounts);
-    
-    new Notice(message, 10000);
+    notice.hide();
+    new Notice(`Training complete: ${successCount}/${enabledCollections.length} collections trained successfully`);
   }
 
   /**
-   * Get tag suggestions for a file
+   * Legacy method - now trains first collection if available
    */
-  async getSuggestions(file: TFile): Promise<Array<{tag: string, probability: number}>> {
+  async trainClassifier(): Promise<void> {
+    if (this.settings.collections.length === 0) {
+      new Notice('No collections found. Create one in settings first.');
+      return;
+    }
+    await this.trainCollection(this.settings.collections[0].id);
+  }
+
+  /**
+   * Show collection selector for operations
+   */
+  showCollectionSelector(operation: 'train' | 'debug'): void {
+    const enabledCollections = this.settings.collections.filter(c => c.enabled);
+    
+    if (enabledCollections.length === 0) {
+      new Notice('No enabled collections. Create one in settings first.');
+      return;
+    }
+    
+    // Always show selector with "All Collections" option
+    new CollectionSelectorModal(
+      this.app, 
+      enabledCollections, 
+      (collectionId) => {
+        if (collectionId === 'ALL') {
+          // Execute for all collections
+          if (operation === 'train') {
+            this.trainAllCollections();
+          } else {
+            this.debugAllCollections();
+          }
+        } else {
+          // Execute for single collection
+          if (operation === 'train') {
+            this.trainCollection(collectionId);
+          } else {
+            this.debugCollection(collectionId);
+          }
+        }
+      },
+      true // Show "All Collections" option
+    ).open();
+  }
+
+  /**
+   * Debug classifier information for a specific collection
+   */
+  debugCollection(collectionId: string): void {
+    const collection = this.settings.collections.find(c => c.id === collectionId);
+    if (!collection) {
+      new Notice('Collection not found');
+      return;
+    }
+
+    const classifier = this.classifiers.get(collectionId);
+    if (!classifier) {
+      new Notice(`Collection "${collection.name}" has no trained classifier`);
+      return;
+    }
+
+    const stats = classifier.getStats();
+    const knownTags = classifier.getAllTags();
+    
+    let message = `Collection: ${collection.name}\n\n`;
+    message += `Classifier Stats:\n`;
+    message += `- Trained on: ${stats.totalDocs} documents\n`;
+    message += `- Unique tags: ${stats.totalTags}\n`;
+    message += `- Known tags: ${knownTags.join(', ')}\n`;
+    message += `\nScope: ${collection.folderMode}`;
+    
+    if (collection.folderMode === 'include') {
+      message += `\nIncluded folders: ${collection.includeFolders.join(', ')}`;
+    } else if (collection.folderMode === 'exclude') {
+      message += `\nExcluded folders: ${collection.excludeFolders.join(', ')}`;
+    }
+    
+    new Notice(message, 10000);
+    this.debug(message);
+  }
+
+  /**
+   * Debug all enabled collections
+   */
+  debugAllCollections(): void {
+    const enabledCollections = this.settings.collections.filter(c => c.enabled);
+    
+    if (enabledCollections.length === 0) {
+      new Notice('No enabled collections.');
+      return;
+    }
+
+    let message = `=== All Collections Debug Info ===\n\n`;
+    
+    for (const collection of enabledCollections) {
+      const classifier = this.classifiers.get(collection.id);
+      message += `📁 ${collection.name} (${collection.enabled ? 'enabled' : 'disabled'})\n`;
+      
+      if (classifier) {
+        const stats = classifier.getStats();
+        message += `   Tags: ${stats.totalTags} | Docs: ${stats.totalDocs}\n`;
+        message += `   Scope: ${collection.folderMode}`;
+        
+        if (collection.folderMode === 'include') {
+          message += ` (${collection.includeFolders.join(', ')})`;
+        } else if (collection.folderMode === 'exclude') {
+          message += ` (excluded: ${collection.excludeFolders.join(', ')})`;
+        }
+        message += `\n`;
+        
+        if (collection.lastTrained) {
+          message += `   Last trained: ${new Date(collection.lastTrained).toLocaleString()}\n`;
+        }
+      } else {
+        message += `   Not trained\n`;
+      }
+      message += `\n`;
+    }
+    
+    this.debug(message);
+    new Notice(message, 15000);
+  }
+
+  /**
+   * onst classifier = this.classifiers.get(collectionId);
+    if (!classifier) {
+      new Notice(`Collection "${collection.name}" has no trained classifier`);
+      return;
+    }
+
+    const stats = classifier.getStats();
+    const knownTags = classifier.getAllTags();
+    
+    let message = `Collection: ${collection.name}\n\n`;
+    message += `Classifier Stats:\n`;
+    message += `- Trained on: ${stats.totalDocs} documents\n`;
+    message += `- Unique tags: ${stats.totalTags}\n`;
+    message += `- Known tags: ${knownTags.join(', ')}\n`;
+    message += `\nScope: ${collection.folderMode}`;
+    
+    if (collection.folderMode === 'include') {
+      message += `\nIncluded folders: ${collection.includeFolders.join(', ')}`;
+    } else if (collection.folderMode === 'exclude') {
+      message += `\nExcluded folders: ${collection.excludeFolders.join(', ')}`;
+    }
+    
+    new Notice(message, 10000);
+    console.log(message);
+  }
+
+  /**
+   * Legacy method - debug first collection
+   */
+  debugClassifier(): void {
+    if (this.settings.collections.length === 0) {
+      new Notice('No collections found. Create one in settings first.');
+      return;
+    }
+    this.debugCollection(this.settings.collections[0].id);
+  }
+
+  /**
+   * Get tag suggestions for a file from all applicable collections
+   */
+  async getSuggestions(file: TFile): Promise<Array<{tag: string, probability: number, collectionName: string}>> {
+    const applicableCollections = this.getApplicableCollections(file);
+    
+    if (applicableCollections.length === 0) {
+      return [];
+    }
+
     const { frontmatter, content } = await this.parseFile(file);
-    const existingTags = this.getTagsFromFrontmatter(frontmatter);
+    const tagScores = new Map<string, {probability: number, collectionName: string}>();
     
-    const whitelist = this.settings.whitelist.length > 0 ? this.settings.whitelist : undefined;
+    // Get suggestions from each applicable collection
+    for (const collection of applicableCollections) {
+      const classifier = this.classifiers.get(collection.id);
+      if (!classifier || classifier.getStats().totalDocs === 0) {
+        continue;
+      }
+
+      const existingTags = this.getTagsFromFrontmatter(frontmatter, collection);
+      const whitelist = collection.whitelist.length > 0 ? collection.whitelist : undefined;
+      
+      const suggestions = await classifier.classify(
+        content,
+        whitelist,
+        collection.threshold,
+        collection.maxTags,
+        existingTags
+      );
+      
+      // Merge suggestions - keep highest probability for each tag
+      for (const sug of suggestions) {
+        const existing = tagScores.get(sug.tag);
+        if (!existing || sug.probability > existing.probability) {
+          tagScores.set(sug.tag, {
+            probability: sug.probability,
+            collectionName: collection.name
+          });
+        }
+      }
+    }
     
-    return await this.classifier.classify(
-      content, 
-      whitelist, 
-      this.settings.threshold, 
-      this.settings.maxTags,
-      existingTags
-    );
+    // Convert to array and sort by probability
+    return Array.from(tagScores.entries())
+      .map(([tag, data]) => ({ tag, ...data }))
+      .sort((a, b) => b.probability - a.probability);
   }
 
   /**
@@ -259,44 +506,63 @@ export default class AutoTaggerPlugin extends Plugin {
       return;
     }
     
-    if (!this.shouldProcessFile(file)) {
-      new Notice('⚠️ File is outside scoped directories. Check folder mode settings.');
+    const applicableCollections = this.getApplicableCollections(file);
+    if (applicableCollections.length === 0) {
+      new Notice('⚠️ File is not in scope of any enabled collection.');
       return;
     }
     
-    if (this.classifier.getStats().totalDocs === 0) {
-      new Notice('Classifier not trained. Please train first.');
+    const hasTrainedClassifier = applicableCollections.some(c => {
+      const classifier = this.classifiers.get(c.id);
+      return classifier && classifier.getStats().totalDocs > 0;
+    });
+    
+    if (!hasTrainedClassifier) {
+      new Notice('No trained classifiers for this file. Please train collections first.');
       return;
     }
     
     const suggestions = await this.getSuggestions(file);
     const { frontmatter } = await this.parseFile(file);
-    const existingTags = this.getTagsFromFrontmatter(frontmatter);
+    
+    // Collect all existing tags (using first collection's blacklist for compatibility)
+    const firstCollection = applicableCollections[0];
+    const existingTags = this.getTagsFromFrontmatter(frontmatter, firstCollection);
     
     new TagSuggestionModal(this.app, this, file, suggestions, existingTags).open();
   }
 
   /**
-   * Apply tags to a file
+   * Apply tags to a file (collection-aware)
    */
   async applyTags(file: TFile, newTags: string[], mode: 'integrate' | 'overwrite' = 'integrate'): Promise<void> {
     const { frontmatter, content, raw } = await this.parseFile(file);
+    const applicableCollections = this.getApplicableCollections(file);
     
     let finalTags: string[];
     
     if (mode === 'overwrite') {
-      // Replace existing tags with new ones
       finalTags = [...new Set(newTags)];
     } else {
-      // Merge with existing tags and remove blacklisted tags
-      const existingTags = this.getTagsFromFrontmatter(frontmatter);
+      // Get existing tags and filter out blacklisted ones from any applicable collection
+      let existingTags: string[] = [];
+      if (Array.isArray(frontmatter.tags)) {
+        existingTags = frontmatter.tags.map((t: any) => String(t).toLowerCase());
+      } else if (typeof frontmatter.tags === 'string') {
+        existingTags = [frontmatter.tags.toLowerCase()];
+      }
       
-      // Filter out blacklisted tags from existing tags
-      const nonBlacklistedExisting = existingTags.filter(tag => 
-        !this.settings.blacklist.some(b => b.toLowerCase() === tag.toLowerCase())
-      );
+      // Collect all blacklisted tags from applicable collections
+      const allBlacklist = new Set<string>();
+      for (const collection of applicableCollections) {
+        collection.blacklist.forEach(tag => allBlacklist.add(tag));
+      }
       
-      finalTags = [...new Set([...nonBlacklistedExisting, ...newTags])];
+      // Filter out blacklisted tags
+      const filteredExisting = existingTags.filter(tag => !allBlacklist.has(tag));
+      
+      // Merge and deduplicate
+      finalTags = [...new Set([...filteredExisting, ...newTags])];
     }
     
     frontmatter.tags = finalTags;
@@ -312,8 +578,6 @@ export default class AutoTaggerPlugin extends Plugin {
    * Auto-tag a file silently
    */
   async autoTagFile(file: TFile): Promise<void> {
-    if (this.classifier.getStats().totalDocs === 0) return;
-    
     const suggestions = await this.getSuggestions(file);
     
     if (suggestions.length > 0) {
@@ -333,13 +597,19 @@ export default class AutoTaggerPlugin extends Plugin {
       return;
     }
     
-    if (!this.shouldProcessFile(file)) {
-      new Notice('⚠️ File is outside scoped directories. Check folder mode settings.');
+    const applicableCollections = this.getApplicableCollections(file);
+    if (applicableCollections.length === 0) {
+      new Notice('⚠️ File is not in scope of any enabled collection.');
       return;
     }
     
-    if (this.classifier.getStats().totalDocs === 0) {
-      new Notice('Classifier not trained. Please train first.');
+    const hasTrainedClassifier = applicableCollections.some(c => {
+      const classifier = this.classifiers.get(c.id);
+      return classifier && classifier.getStats().totalDocs > 0;
+    });
+    
+    if (!hasTrainedClassifier) {
+      new Notice('No trained classifiers for this file. Please train collections first.');
       return;
     }
     
@@ -361,8 +631,8 @@ export default class AutoTaggerPlugin extends Plugin {
    * Tag all notes in scope
    */
   async tagAllNotes(mode: 'integrate' | 'overwrite' = 'integrate'): Promise<void> {
-    if (this.classifier.getStats().totalDocs === 0) {
-      new Notice('Classifier not trained. Please train first.');
+    if (this.classifiers.size === 0) {
+      new Notice('No trained classifiers. Please train collections first.');
       return;
     }
     
@@ -398,8 +668,8 @@ export default class AutoTaggerPlugin extends Plugin {
       return;
     }
     
-    if (this.classifier.getStats().totalDocs === 0) {
-      new Notice('Classifier not trained. Please train first.');
+    if (this.classifiers.size === 0) {
+      new Notice('No trained classifiers. Please train collections first.');
       return;
     }
     
@@ -433,11 +703,14 @@ export default class AutoTaggerPlugin extends Plugin {
   }
 
   onunload() {
-    // Save classifier on unload
-    if (this.classifier.getStats().totalDocs > 0) {
-      this.settings.classifierData = this.classifier.export();
-      this.saveSettings();
+    // Save all classifier data on unload
+    for (const collection of this.settings.collections) {
+      const classifier = this.classifiers.get(collection.id);
+      if (classifier && classifier.getStats().totalDocs > 0) {
+        collection.classifierData = classifier.export();
+      }
     }
+    this.saveSettings();
   }
 }
 
@@ -447,7 +720,7 @@ export default class AutoTaggerPlugin extends Plugin {
 class TagSuggestionModal extends Modal {
   plugin: AutoTaggerPlugin;
   file: TFile;
-  suggestions: Array<{tag: string, probability: number}>;
+  suggestions: Array<{tag: string, probability: number, collectionName?: string}>;
   existingTags: string[];
   selectedTags: Set<string>;
   blacklistedTags: string[];
@@ -456,7 +729,7 @@ class TagSuggestionModal extends Modal {
     app: App, 
     plugin: AutoTaggerPlugin, 
     file: TFile, 
-    suggestions: Array<{tag: string, probability: number}>,
+    suggestions: Array<{tag: string, probability: number, collectionName?: string}>,
     existingTags: string[]
   ) {
     super(app);
@@ -466,10 +739,14 @@ class TagSuggestionModal extends Modal {
     this.existingTags = existingTags;
     this.selectedTags = new Set(suggestions.map(s => s.tag));
     
-    // Find blacklisted tags in existing tags
-    this.blacklistedTags = existingTags.filter(tag => 
-      plugin.settings.blacklist.some(b => b.toLowerCase() === tag.toLowerCase())
-    );
+    // Find blacklisted tags in existing tags (from all applicable collections)
+    const applicableCollections = plugin.getApplicableCollections(file);
+    const allBlacklist = new Set<string>();
+    for (const collection of applicableCollections) {
+      collection.blacklist.forEach(tag => allBlacklist.add(tag));
+    }
+    
+    this.blacklistedTags = existingTags.filter(tag => allBlacklist.has(tag.toLowerCase()));
   }
 
   onOpen() {
@@ -516,7 +793,13 @@ class TagSuggestionModal extends Modal {
       });
       
       const label = item.createEl('label');
-      label.textContent = `${suggestion.tag} (${(suggestion.probability * 100).toFixed(1)}%)`;
+      const labelText = `${suggestion.tag} (${(suggestion.probability * 100).toFixed(1)}%)`;
+      const collectionInfo = suggestion.collectionName ? ` [${suggestion.collectionName}]` : '';
+      label.textContent = labelText + collectionInfo;
+      
+      if (suggestion.collectionName) {
+        label.style.fontSize = '0.9em';
+      }
       
       // Skip if already exists
       if (this.existingTags.includes(suggestion.tag)) {
@@ -536,9 +819,9 @@ class TagSuggestionModal extends Modal {
       const tagsToAdd = Array.from(this.selectedTags);
       if (tagsToAdd.length > 0 || this.blacklistedTags.length > 0) {
         await this.plugin.applyTags(this.file, tagsToAdd, 'integrate');
-        const messages = [];
+        const messages: string[] = [];
         if (tagsToAdd.length > 0) {
-          messages.push(`Added ${tagsToAdd.length} tags`);
+          messages.push(`added ${tagsToAdd.length} tags`);
         }
         if (this.blacklistedTags.length > 0) {
           messages.push(`removed ${this.blacklistedTags.length} blacklisted tags`);
@@ -547,6 +830,118 @@ class TagSuggestionModal extends Modal {
       }
       this.close();
     });
+    
+    const cancelButton = buttonContainer.createEl('button', { text: 'Cancel' });
+    cancelButton.addEventListener('click', () => this.close());
+  }
+
+  onClose() {
+    const { contentEl } = this;
+    contentEl.empty();
+  }
+}
+
+/**
+ * Modal for selecting a collection
+ */
+class CollectionSelectorModal extends Modal {
+  collections: Collection[];
+  onSelect: (collectionId: string) => void;
+  showAllOption: boolean;
+
+  constructor(
+    app: App, 
+    collections: Collection[], 
+    onSelect: (collectionId: string) => void,
+    showAllOption: boolean = false
+  ) {
+    super(app);
+    this.collections = collections;
+    this.onSelect = onSelect;
+    this.showAllOption = showAllOption;
+  }
+
+  onOpen() {
+    const { contentEl } = this;
+    
+    contentEl.createEl('h2', { text: 'Select Collection' });
+    contentEl.createEl('p', { text: 'Choose which collection to use:' });
+    
+    const listContainer = contentEl.createEl('div');
+    listContainer.style.margin = '20px 0';
+    listContainer.style.maxHeight = '400px';
+    listContainer.style.overflowY = 'auto';
+    
+    // Add "All Collections" option if enabled
+    if (this.showAllOption && this.collections.length > 1) {
+      const allItem = listContainer.createEl('div');
+      allItem.style.padding = '10px';
+      allItem.style.marginBottom = '12px';
+      allItem.style.border = '2px solid var(--interactive-accent)';
+      allItem.style.borderRadius = '4px';
+      allItem.style.cursor = 'pointer';
+      allItem.style.backgroundColor = 'var(--background-secondary)';
+      
+      allItem.addEventListener('click', () => {
+        this.onSelect('ALL');
+        this.close();
+      });
+      
+      allItem.addEventListener('mouseenter', () => {
+        allItem.style.backgroundColor = 'var(--background-modifier-hover)';
+      });
+      
+      allItem.addEventListener('mouseleave', () => {
+        allItem.style.backgroundColor = 'var(--background-secondary)';
+      });
+      
+      const allTitle = allItem.createEl('div', { cls: 'setting-item-name' });
+      allTitle.textContent = '🌐 All Collections';
+      allTitle.style.fontWeight = 'bold';
+      
+      const allDesc = allItem.createEl('div', { cls: 'setting-item-description' });
+      allDesc.textContent = `Execute operation on all ${this.collections.length} enabled collections`;
+    }
+    
+    // Add individual collections
+    for (const collection of this.collections) {
+      const item = listContainer.createEl('div');
+      item.style.padding = '10px';
+      item.style.marginBottom = '8px';
+      item.style.border = '1px solid var(--background-modifier-border)';
+      item.style.borderRadius = '4px';
+      item.style.cursor = 'pointer';
+      
+      item.addEventListener('click', () => {
+        this.onSelect(collection.id);
+        this.close();
+      });
+      
+      item.addEventListener('mouseenter', () => {
+        item.style.backgroundColor = 'var(--background-modifier-hover)';
+      });
+      
+      item.addEventListener('mouseleave', () => {
+        item.style.backgroundColor = 'transparent';
+      });
+      
+      item.createEl('div', { text: collection.name, cls: 'setting-item-name' });
+      
+      const desc = item.createEl('div', { cls: 'setting-item-description' });
+      desc.textContent = `Scope: ${collection.folderMode}`;
+      
+      if (collection.lastTrained) {
+        const date = new Date(collection.lastTrained).toLocaleString();
+        desc.textContent += ` | Last trained: ${date}`;
+      } else {
+        desc.textContent += ' | Not trained yet';
+      }
+    }
+    
+    const buttonContainer = contentEl.createEl('div');
+    buttonContainer.style.marginTop = '20px';
+    buttonContainer.style.display = 'flex';
+    buttonContainer.style.justifyContent = 'flex-end';
     
     const cancelButton = buttonContainer.createEl('button', { text: 'Cancel' });
     cancelButton.addEventListener('click', () => this.close());
