@@ -38,7 +38,7 @@ export default class AutoTaggerPlugin extends Plugin {
     }
 
     // Add ribbon icon
-    this.addRibbonIcon('tag', 'Auto tagger: suggest tags', () => {
+    this.addRibbonIcon('tag', 'Suggest tags with autotagger', () => {
       void this.showTagSuggestions();
     });
 
@@ -897,7 +897,7 @@ class CollectionSelectorModal extends Modal {
         const date = new Date(collection.lastTrained).toLocaleString();
         desc.textContent += ` | Last trained: ${date}`;
       } else {
-        desc.textContent += ' | Not trained';
+        desc.textContent += ' | not trained';
       }
     }
     
