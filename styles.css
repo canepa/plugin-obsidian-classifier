@@ -48,3 +48,86 @@
 .auto-tagger-settings textarea::placeholder {
   color: var(--text-muted);
 }
+
+/* Settings UI styles */
+.auto-tagger-intro {
+  padding: 10px;
+  background-color: var(--background-secondary);
+  border-radius: 4px;
+  margin-bottom: 16px;
+}
+
+.auto-tagger-collection {
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 16px;
+  background-color: var(--background-secondary);
+}
+
+.auto-tagger-status {
+  font-style: italic;
+}
+
+.auto-tagger-tags-container {
+  max-height: 200px;
+  overflow-y: auto;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+  padding: 8px;
+  margin-top: 8px;
+}
+
+.auto-tagger-warning {
+  padding: 10px;
+  margin-bottom: 10px;
+  background-color: rgba(255, 215, 0, 0.125);
+  border: 1px solid #ffd700;
+  border-radius: 4px;
+}
+
+.auto-tagger-tag-item label {
+  font-size: 0.9em;
+}
+
+.auto-tagger-tag-item.excluded label {
+  text-decoration: line-through;
+  opacity: 0.5;
+}
+
+/* Collection selector modal */
+.auto-tagger-collection-list {
+  margin: 20px 0;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.auto-tagger-collection-item {
+  padding: 10px;
+  margin-bottom: 8px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+  cursor: pointer;
+  background-color: var(--background-primary);
+}
+
+.auto-tagger-collection-item:hover {
+  background-color: var(--background-modifier-hover);
+}
+
+.auto-tagger-collection-item-all {
+  padding: 10px;
+  margin-bottom: 12px;
+  border: 2px solid var(--interactive-accent);
+  border-radius: 4px;
+  cursor: pointer;
+  background-color: var(--background-secondary);
+}
+
+.auto-tagger-collection-item-all:hover {
+  background-color: var(--background-modifier-hover);
+}
+
+.auto-tagger-collection-title {
+  font-weight: bold;
+}

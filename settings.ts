@@ -130,17 +130,17 @@ export class AutoTaggerSettingTab extends PluginSettingTab {
 
     containerEl.createEl('h2', { text: 'Auto Tagger Settings' });
     
-    const introText = containerEl.createEl('p', { 
-      cls: 'setting-item-description'
+    const introText = containerEl.createEl('div', { 
+      cls: 'setting-item-description auto-tagger-intro'
     });
-    introText.innerHTML = 'Create <strong>collections</strong> to organize your notes with specialized classifiers. ' +
-      'Each collection has its own scope, tag filters, and trained classifier. ' +
-      'When a note matches multiple collections, suggestions are merged. ' +
-      '<br><br>💡 <strong>Quick Start:</strong> Click "+ New Collection", configure scope and filters, then click "Train".';
-    introText.style.padding = '10px';
-    introText.style.backgroundColor = 'var(--background-secondary)';
-    introText.style.borderRadius = '4px';
-    introText.style.marginBottom = '16px';
+    introText.createEl('span', { text: 'Create ' });
+    introText.createEl('strong', { text: 'collections' });
+    introText.createEl('span', { text: ' to organize your notes with specialized classifiers. Each collection has its own scope, tag filters, and trained classifier. When a note matches multiple collections, suggestions are merged.' });
+    introText.createEl('br');
+    introText.createEl('br');
+    introText.createEl('span', { text: '💡 ' });
+    introText.createEl('strong', { text: 'Quick Start:' });
+    introText.createEl('span', { text: ' Click "+ New Collection", configure scope and filters, then click "Train".' });
 
     // Global Settings
     containerEl.createEl('h3', { text: 'Global Settings' });
@@ -199,11 +199,6 @@ export class AutoTaggerSettingTab extends PluginSettingTab {
     const collectionContainer = containerEl.createEl('div', { 
       cls: 'auto-tagger-collection' 
     });
-    collectionContainer.style.border = '1px solid var(--background-modifier-border)';
-    collectionContainer.style.borderRadius = '8px';
-    collectionContainer.style.padding = '16px';
-    collectionContainer.style.marginBottom = '16px';
-    collectionContainer.style.backgroundColor = 'var(--background-secondary)';
 
     // Collection Header
     const headerSetting = new Setting(collectionContainer)
@@ -284,13 +279,13 @@ export class AutoTaggerSettingTab extends PluginSettingTab {
       
       collectionContainer.createEl('p', {
         text: statusText + lastTrainedText,
-        cls: 'setting-item-description'
-      }).style.fontStyle = 'italic';
+        cls: 'setting-item-description auto-tagger-status'
+      });
     } else {
       collectionContainer.createEl('p', {
         text: 'Not trained yet. Use the "Train" button below.',
-        cls: 'setting-item-description'
-      }).style.fontStyle = 'italic';
+        cls: 'setting-item-description auto-tagger-status'
+      });
     }
 
     // Folder Scope
@@ -381,13 +376,7 @@ export class AutoTaggerSettingTab extends PluginSettingTab {
         const tagSection = collectionContainer.createEl('details');
         tagSection.createEl('summary', { text: `All Tags in Collection (${allTags.length})` });
         
-        const tagsContainer = tagSection.createEl('div', { cls: 'auto-tagger-tags-list' });
-        tagsContainer.style.maxHeight = '200px';
-        tagsContainer.style.overflowY = 'auto';
-        tagsContainer.style.border = '1px solid var(--background-modifier-border)';
-        tagsContainer.style.borderRadius = '4px';
-        tagsContainer.style.padding = '8px';
-        tagsContainer.style.marginTop = '8px';
+        const tagsContainer = tagSection.createEl('div', { cls: 'auto-tagger-tags-container' });
         
         for (const tag of allTags) {
           const tagSetting = new Setting(tagsContainer)

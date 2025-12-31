@@ -761,12 +761,7 @@ class TagSuggestionModal extends Modal {
     
     // Show warning about blacklisted tags that will be removed
     if (this.blacklistedTags.length > 0) {
-      const warningEl = contentEl.createDiv({ cls: 'mod-warning' });
-      warningEl.style.padding = '10px';
-      warningEl.style.marginBottom = '10px';
-      warningEl.style.backgroundColor = '#ffd70020';
-      warningEl.style.border = '1px solid #ffd700';
-      warningEl.style.borderRadius = '4px';
+      const warningEl = contentEl.createDiv({ cls: 'auto-tagger-warning' });
       warningEl.createEl('p', { 
         text: `⚠️ Blacklisted tags will be removed: ${this.blacklistedTags.join(', ')}` 
       });
@@ -797,17 +792,14 @@ class TagSuggestionModal extends Modal {
       const collectionInfo = suggestion.collectionName ? ` [${suggestion.collectionName}]` : '';
       label.textContent = labelText + collectionInfo;
       
-      if (suggestion.collectionName) {
-        label.style.fontSize = '0.9em';
-      }
-      
       // Skip if already exists
       if (this.existingTags.includes(suggestion.tag)) {
         checkbox.disabled = true;
         checkbox.checked = false;
-        label.style.textDecoration = 'line-through';
-        label.style.opacity = '0.5';
+        item.addClass('auto-tagger-tag-item excluded');
         this.selectedTags.delete(suggestion.tag);
+      } else if (suggestion.collectionName) {
+        item.addClass('auto-tagger-tag-item');
       }
     }
     
@@ -867,37 +859,19 @@ class CollectionSelectorModal extends Modal {
     contentEl.createEl('h2', { text: 'Select Collection' });
     contentEl.createEl('p', { text: 'Choose which collection to use:' });
     
-    const listContainer = contentEl.createEl('div');
-    listContainer.style.margin = '20px 0';
-    listContainer.style.maxHeight = '400px';
-    listContainer.style.overflowY = 'auto';
+    const listContainer = contentEl.createEl('div', { cls: 'auto-tagger-collection-list' });
     
     // Add "All Collections" option if enabled
     if (this.showAllOption && this.collections.length > 1) {
-      const allItem = listContainer.createEl('div');
-      allItem.style.padding = '10px';
-      allItem.style.marginBottom = '12px';
-      allItem.style.border = '2px solid var(--interactive-accent)';
-      allItem.style.borderRadius = '4px';
-      allItem.style.cursor = 'pointer';
-      allItem.style.backgroundColor = 'var(--background-secondary)';
+      const allItem = listContainer.createEl('div', { cls: 'auto-tagger-collection-item-all' });
       
       allItem.addEventListener('click', () => {
         this.onSelect('ALL');
         this.close();
       });
       
-      allItem.addEventListener('mouseenter', () => {
-        allItem.style.backgroundColor = 'var(--background-modifier-hover)';
-      });
-      
-      allItem.addEventListener('mouseleave', () => {
-        allItem.style.backgroundColor = 'var(--background-secondary)';
-      });
-      
-      const allTitle = allItem.createEl('div', { cls: 'setting-item-name' });
+      const allTitle = allItem.createEl('div', { cls: 'setting-item-name auto-tagger-collection-title' });
       allTitle.textContent = '🌐 All Collections';
-      allTitle.style.fontWeight = 'bold';
       
       const allDesc = allItem.createEl('div', { cls: 'setting-item-description' });
       allDesc.textContent = `Execute operation on all ${this.collections.length} enabled collections`;
@@ -905,24 +879,11 @@ class CollectionSelectorModal extends Modal {
     
     // Add individual collections
     for (const collection of this.collections) {
-      const item = listContainer.createEl('div');
-      item.style.padding = '10px';
-      item.style.marginBottom = '8px';
-      item.style.border = '1px solid var(--background-modifier-border)';
-      item.style.borderRadius = '4px';
-      item.style.cursor = 'pointer';
+      const item = listContainer.createEl('div', { cls: 'auto-tagger-collection-item' });
       
       item.addEventListener('click', () => {
         this.onSelect(collection.id);
         this.close();
-      });
-      
-      item.addEventListener('mouseenter', () => {
-        item.style.backgroundColor = 'var(--background-modifier-hover)';
-      });
-      
-      item.addEventListener('mouseleave', () => {
-        item.style.backgroundColor = 'transparent';
       });
       
       item.createEl('div', { text: collection.name, cls: 'setting-item-name' });
