@@ -1,5 +1,5 @@
 import { App, Plugin, PluginSettingTab, Setting, Notice } from 'obsidian';
-import type { EmbeddingClassifierData } from './embedding-classifier';
+import type { EmbeddingClassifierData, EmbeddingClassifier } from './embedding-classifier';
 
 export interface Collection {
   id: string;
@@ -64,24 +64,26 @@ export const DEFAULT_SETTINGS: AutoTaggerSettings = {
 /**
  * Migrate old settings format to new collection-based format
  */
-export function migrateSettings(data: any): AutoTaggerSettings {
+export function migrateSettings(data: unknown): AutoTaggerSettings {
+  const oldData = data as Record<string, unknown>;
+  
   // Already migrated
-  if (data.collections && Array.isArray(data.collections)) {
-    return data;
+  if (oldData.collections && Array.isArray(oldData.collections)) {
+    return data as AutoTaggerSettings;
   }
   
   // Create default collection from old settings
   const defaultCollection: Collection = {
     id: 'default',
     name: 'Default Collection',
-    folderMode: data.folderMode || 'all',
-    includeFolders: data.includeFolders || [],
-    excludeFolders: data.excludeFolders || [],
-    whitelist: data.whitelist || [],
-    blacklist: data.blacklist || [],
-    threshold: data.threshold ?? 0.3,
-    maxTags: data.maxTags ?? 5,
-    classifierData: data.classifierData || null,
+    folderMode: (oldData.folderMode as 'all' | 'include' | 'exclude') || 'all',
+    includeFolders: (oldData.includeFolders as string[]) || [],
+    excludeFolders: (oldData.excludeFolders as string[]) || [],
+    whitelist: (oldData.whitelist as string[]) || [],
+    blacklist: (oldData.blacklist as string[]) || [],
+    threshold: (oldData.threshold as number) ?? 0.3,
+    maxTags: (oldData.maxTags as number) ?? 5,
+    classifierData: (oldData.classifierData as EmbeddingClassifierData) || null,
     enabled: true,
     lastTrained: null
   };
@@ -91,22 +93,27 @@ export function migrateSettings(data: any): AutoTaggerSettings {
   return {
     collections: [defaultCollection],
     activeCollectionId: 'default',
-    autoTagOnSave: data.autoTagOnSave ?? false,
-    debugToConsole: data.debugToConsole ?? false,
-    defaultThreshold: data.threshold ?? 0.3,
-    defaultMaxTags: data.maxTags ?? 5
+    autoTagOnSave: (oldData.autoTagOnSave as boolean) ?? false,
+    debugToConsole: (oldData.debugToConsole as boolean) ?? false,
+    defaultThreshold: (oldData.threshold as number) ?? 0.3,
+    defaultMaxTags: (oldData.maxTags as number) ?? 5
   };
 }
 
 export class AutoTaggerSettingTab extends PluginSettingTab {
   plugin: Plugin & {
     settings: AutoTaggerSettings;
-    classifiers: Map<string, any>;
+    classifiers: Map<string, EmbeddingClassifier>;
     saveSettings(): Promise<void>;
     trainCollection(collectionId: string): Promise<void>;
   };
 
-  constructor(app: App, plugin: any) {
+  constructor(app: App, plugin: Plugin & {
+    settings: AutoTaggerSettings;
+    classifiers: Map<string, EmbeddingClassifier>;
+    saveSettings(): Promise<void>;
+    trainCollection(collectionId: string): Promise<void>;
+  }) {
     super(app, plugin);
     this.plugin = plugin;
   }
@@ -129,20 +136,20 @@ export class AutoTaggerSettingTab extends PluginSettingTab {
     containerEl.addClass('auto-tagger-settings');
 
     new Setting(containerEl)
-      .setName('Auto tagger settings')
+      .setName('Configuration')
       .setHeading();
     
     const introText = containerEl.createEl('div', { 
       cls: 'setting-item-description auto-tagger-intro'
     });
     introText.createEl('span', { text: 'Create ' });
-    introText.createEl('strong', { text: 'collections' });
-    introText.createEl('span', { text: ' to organize your notes with specialized classifiers. each collection has its own scope, tag filters, and trained classifier. when a note matches multiple collections, suggestions are merged.' });
+    introText.createEl('strong', { text: 'Collections' });
+    introText.createEl('span', { text: ' to organize your notes with specialized classifiers. Each Collection has its own scope, tag filters, and trained classifier. When a note matches multiple Collections, suggestions are merged' });
     introText.createEl('br');
     introText.createEl('br');
     introText.createEl('span', { text: '💡 ' });
-    introText.createEl('strong', { text: 'Quick start:' });
-    introText.createEl('span', { text: ' click the "+ new collection" button, configure scope and filters, then click "train".' });
+    introText.createEl('strong', { text: 'Quick Start:' });
+    introText.createEl('span', { text: ' Click the "+ New Collection" button, configure scope and filters, then click "Train"' });
 
     // Global Settings
     new Setting(containerEl)
@@ -383,7 +390,7 @@ export class AutoTaggerSettingTab extends PluginSettingTab {
 
     // Show existing tags with blacklist management
     if (stats && stats.totalTags > 0) {
-      const allTags = Object.keys(classifier.tagDocCounts || {}).sort();
+      const allTags = classifier?.getAllTags() || [];
       
       if (allTags.length > 0) {
         const tagSection = collectionContainer.createEl('details');
@@ -394,7 +401,7 @@ export class AutoTaggerSettingTab extends PluginSettingTab {
         for (const tag of allTags) {
           const tagSetting = new Setting(tagsContainer)
             .setName(tag)
-            .setDesc(`Used in ${classifier.tagDocCounts[tag]} documents`);
+            .setDesc(`Used in ${classifier?.getTagDocCount(tag)} documents`);
           
           const isBlacklisted = collection.blacklist.includes(tag);
           

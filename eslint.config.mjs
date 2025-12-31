@@ -9,6 +9,7 @@ export default [
     languageOptions: {
       parser: tsparser,
       parserOptions: {
+        project: "./tsconfig.json",
         ecmaVersion: 2020,
         sourceType: "module"
       }
@@ -33,15 +34,22 @@ export default [
       ],
       "@typescript-eslint/no-explicit-any": "warn",
       
-      // Obsidian plugin rules (basic checks that don't need type info)
+      // Obsidian plugin rules
       "obsidianmd/no-forbidden-elements": "error",
       "obsidianmd/no-static-styles-assignment": "error",
       "obsidianmd/settings-tab/no-manual-html-headings": "error",
       "obsidianmd/ui/sentence-case": [
         "warn",
         {
-          enforceCamelCaseLower: true,
-          ignoreWords: ["New", "Train", "Collection", "Collections", "Quick", "Start", "Not", "File", "All", "Folder1", "Folder2", "Subfolder", "Archive", "Templates", "Project", "Important", "Review", "Todo", "Draft", "Private", "Remove", "Blacklist", "Last"]
+          brands: ["Auto Tagger"],
+          acronyms: ["TF-IDF"],
+          ignoreWords: [
+            "Collection", "Collections", "Train", "New", "Quick", "Start", 
+            "Each", "When", "Click", "Last", "Not", "All", "File",
+            // Placeholder examples
+            "Folder1", "Folder2", "Subfolder", "Archive", "Templates",
+            "Project", "Important", "Review", "Todo", "Draft", "Private"
+          ]
         }
       ],
       "obsidianmd/regex-lookbehind": "error"

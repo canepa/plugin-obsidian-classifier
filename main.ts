@@ -39,7 +39,7 @@ export default class AutoTaggerPlugin extends Plugin {
 
     // Add ribbon icon
     this.addRibbonIcon('tag', 'Auto tagger: suggest tags', () => {
-      this.showTagSuggestions();
+      void this.showTagSuggestions();
     });
 
     // Add commands
@@ -58,13 +58,13 @@ export default class AutoTaggerPlugin extends Plugin {
     this.addCommand({
       id: 'tag-current-note',
       name: 'Suggest tags for current note',
-      callback: () => this.showTagSuggestions()
+      callback: () => void this.showTagSuggestions()
     });
 
     this.addCommand({
       id: 'auto-tag-current-integrate',
       name: 'Auto-tag current note (integrate mode)',
-      callback: () => this.autoTagCurrentNote('integrate')
+      callback: () => void this.autoTagCurrentNote('integrate')
     });
 
     this.addCommand({
@@ -313,7 +313,7 @@ export default class AutoTaggerPlugin extends Plugin {
         if (collectionId === 'ALL') {
           // Execute for all collections
           if (operation === 'train') {
-            this.trainAllCollections();
+            void this.trainAllCollections();
           } else {
             this.debugAllCollections();
           }
@@ -432,7 +432,7 @@ export default class AutoTaggerPlugin extends Plugin {
     }
     
     new Notice(message, 10000);
-    console.log(message);
+    console.debug(message);
   }
 
   /**
@@ -508,7 +508,7 @@ export default class AutoTaggerPlugin extends Plugin {
     
     const applicableCollections = this.getApplicableCollections(file);
     if (applicableCollections.length === 0) {
-      new Notice('⚠️ File is not in scope of any enabled collection.');
+      new Notice('⚠️ File is not in scope of any enabled collection');
       return;
     }
     
@@ -599,7 +599,7 @@ export default class AutoTaggerPlugin extends Plugin {
     
     const applicableCollections = this.getApplicableCollections(file);
     if (applicableCollections.length === 0) {
-      new Notice('⚠️ File is not in scope of any enabled collection.');
+      new Notice('⚠️ File is not in scope of any enabled collection');
       return;
     }
     
@@ -807,20 +807,22 @@ class TagSuggestionModal extends Modal {
     
     const addButton = buttonContainer.createEl('button', { text: 'Add tags' });
     addButton.addClass('mod-cta');
-    addButton.addEventListener('click', async () => {
-      const tagsToAdd = Array.from(this.selectedTags);
-      if (tagsToAdd.length > 0 || this.blacklistedTags.length > 0) {
-        await this.plugin.applyTags(this.file, tagsToAdd, 'integrate');
-        const messages: string[] = [];
-        if (tagsToAdd.length > 0) {
-          messages.push(`added ${tagsToAdd.length} tags`);
+    addButton.addEventListener('click', () => {
+      void (async () => {
+        const tagsToAdd = Array.from(this.selectedTags);
+        if (tagsToAdd.length > 0 || this.blacklistedTags.length > 0) {
+          await this.plugin.applyTags(this.file, tagsToAdd, 'integrate');
+          const messages: string[] = [];
+          if (tagsToAdd.length > 0) {
+            messages.push(`added ${tagsToAdd.length} tags`);
+          }
+          if (this.blacklistedTags.length > 0) {
+            messages.push(`removed ${this.blacklistedTags.length} blacklisted tags`);
+          }
+          new Notice(messages.join(', '));
         }
-        if (this.blacklistedTags.length > 0) {
-          messages.push(`removed ${this.blacklistedTags.length} blacklisted tags`);
-        }
-        new Notice(messages.join(', '));
-      }
-      this.close();
+        this.close();
+      })();
     });
     
     const cancelButton = buttonContainer.createEl('button', { text: 'Cancel' });
@@ -871,7 +873,7 @@ class CollectionSelectorModal extends Modal {
       });
       
       const allTitle = allItem.createEl('div', { cls: 'setting-item-name auto-tagger-collection-title' });
-      allTitle.textContent = '🌐 All collections';
+      allTitle.textContent = '🌐 All Collections';
       
       const allDesc = allItem.createEl('div', { cls: 'setting-item-description' });
       allDesc.textContent = `Execute operation on all ${this.collections.length} enabled collections`;

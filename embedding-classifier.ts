@@ -475,4 +475,11 @@ export class EmbeddingClassifier {
   getAllTags(): string[] {
     return Object.keys(this.tagEmbeddings).sort();
   }
+
+  /**
+   * Get document count for a specific tag
+   */
+  getTagDocCount(tag: string): number {
+    return this.tagDocCounts[tag] || 0;
+  }
 }

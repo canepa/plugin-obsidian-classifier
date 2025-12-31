@@ -61,15 +61,15 @@ export class NaiveBayesClassifier {
     useClassBalancing: boolean = true
   ): Array<{tag: string, probability: number}> {
     if (this.totalDocs === 0) {
-      console.log('[Classifier] No documents trained');
+      console.debug('[Classifier] No documents trained');
       return [];
     }
 
     const words = this.tokenize(this.preprocessText(text));
-    console.log('[Classifier] Tokenized words:', words.length, 'words');
+    console.debug('[Classifier] Tokenized words:', words.length, 'words');
     
     if (words.length === 0) {
-      console.log('[Classifier] No words found after preprocessing');
+      console.debug('[Classifier] No words found after preprocessing');
       return [];
     }
     
@@ -79,8 +79,8 @@ export class NaiveBayesClassifier {
       ? whitelist.filter(t => this.tagDocCounts[t])
       : Object.keys(this.tagDocCounts);
     
-    console.log('[Classifier] Evaluating tags:', tags);
-    console.log('[Classifier] Class balancing:', useClassBalancing ? 'enabled' : 'disabled');
+    console.debug('[Classifier] Evaluating tags:', tags);
+    console.debug('[Classifier] Class balancing:', useClassBalancing ? 'enabled' : 'disabled');
     
     for (const tag of tags) {
       scores[tag] = this.calculateContentScore(words, tag, useClassBalancing);
@@ -90,13 +90,13 @@ export class NaiveBayesClassifier {
     const validScores = Object.entries(scores).filter(([_, score]) => isFinite(score));
     
     if (validScores.length === 0) {
-      console.log('[Classifier] No valid scores, returning empty results');
+      console.debug('[Classifier] No valid scores, returning empty results');
       return [];
     }
     
     // Filter by keyword presence: only suggest tags if the tag word appears in the text
     const wordsSet = new Set(words);
-    console.log('[Classifier] Sample words in text:', Array.from(wordsSet).slice(0, 20).join(', '));
+    console.debug('[Classifier] Sample words in text:', Array.from(wordsSet).slice(0, 20).join(', '));
     
     const keywordFilteredScores = validScores.filter(([tag, _]) => {
       // Check if tag name or related words appear in text
@@ -119,22 +119,22 @@ export class NaiveBayesClassifier {
       });
       
       if (!hasKeyword) {
-        console.log(`[Classifier] Filtered out "${tag}": keyword not found in text`);
+        console.debug(`[Classifier] Filtered out "${tag}": keyword not found in text`);
       }
       return hasKeyword;
     });
     
     if (keywordFilteredScores.length === 0) {
-      console.log('[Classifier] No tags with keywords in text, using all valid tags');
+      console.debug('[Classifier] No tags with keywords in text, using all valid tags');
       // Fall back to all valid tags if none have keywords
-      console.log('[Classifier] Score sample:', validScores.slice(0, 5).map(([tag, score]) => `${tag}: ${score.toFixed(4)}`));
+      console.debug('[Classifier] Score sample:', validScores.slice(0, 5).map(([tag, score]) => `${tag}: ${score.toFixed(4)}`));
     } else {
-      console.log('[Classifier] Score sample:', keywordFilteredScores.slice(0, 5).map(([tag, score]) => `${tag}: ${score.toFixed(4)}`));
+      console.debug('[Classifier] Score sample:', keywordFilteredScores.slice(0, 5).map(([tag, score]) => `${tag}: ${score.toFixed(4)}`));
       validScores.length = 0;
       validScores.push(...keywordFilteredScores);
     }
     
-    console.log('[Classifier] Score sample:', validScores.slice(0, 5).map(([tag, score]) => `${tag}: ${score.toFixed(4)}`));
+    console.debug('[Classifier] Score sample:', validScores.slice(0, 5).map(([tag, score]) => `${tag}: ${score.toFixed(4)}`));
     
     // Normalize scores to probabilities
     const maxScore = Math.max(...validScores.map(([_, score]) => score));
@@ -153,13 +153,13 @@ export class NaiveBayesClassifier {
       }))
       .sort((a, b) => b.probability - a.probability);
 
-    console.log('[Classifier] Top 5 results:', allResults.slice(0, 5).map(r => {
+    console.debug('[Classifier] Top 5 results:', allResults.slice(0, 5).map(r => {
       const pct = r.probability * 100;
       return `${r.tag}: ${pct < 0.01 ? pct.toExponential(2) : pct.toFixed(2)}%`;
     }));
     
     // Return top N results, ignoring threshold for multi-label support
-    console.log('[Classifier] Returning top', maxResults, 'tags');
+    console.debug('[Classifier] Returning top', maxResults, 'tags');
     
     return allResults.slice(0, maxResults);
   }
@@ -318,7 +318,7 @@ export class NaiveBayesClassifier {
     }
     
     if (corruptedTags.length > 0) {
-      console.log('[Classifier] Cleaned up corrupted tags:', corruptedTags);
+      console.debug('[Classifier] Cleaned up corrupted tags:', corruptedTags);
     }
   }
 
@@ -355,7 +355,7 @@ export class NaiveBayesClassifier {
     }
     
     if (emptyTags.length > 0) {
-      console.log('[Classifier] Removed empty tags:', emptyTags);
+      console.debug('[Classifier] Removed empty tags:', emptyTags);
     }
   }
 }
