@@ -184,9 +184,9 @@ export default class AutoTaggerPlugin extends Plugin {
       try {
         const frontmatter = parseYaml(match[1]) || {};
         return { frontmatter, content: match[2], raw };
-      } catch (_e) {
-        return { frontmatter: {}, content: raw, raw };
-      }
+        } catch {
+          return { frontmatter: {}, content: raw, raw };
+        }
     }
     
     return { frontmatter: {}, content: raw, raw };
