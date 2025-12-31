@@ -584,7 +584,3 @@ MIT
 ## Author
 
 Alessandro Canepa
-
-## Version
-
-2.0.0
