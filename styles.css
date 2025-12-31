@@ -131,3 +131,9 @@
 .auto-tagger-collection-title {
   font-weight: bold;
 }
+
+.modal-button-container {
+  margin-top: 20px;
+  display: flex;
+  justify-content: flex-end;
+}

@@ -1,4 +1,4 @@
-import { App, Plugin, PluginSettingTab, Setting } from 'obsidian';
+import { App, Plugin, PluginSettingTab, Setting, Notice } from 'obsidian';
 import type { EmbeddingClassifierData } from './embedding-classifier';
 
 export interface Collection {
@@ -86,7 +86,7 @@ export function migrateSettings(data: any): AutoTaggerSettings {
     lastTrained: null
   };
   
-  console.log('[Auto Tagger] Migrating settings to collection-based format');
+  console.debug('[Auto Tagger] Migrating settings to collection-based format');
   
   return {
     collections: [defaultCollection],
@@ -112,7 +112,7 @@ export class AutoTaggerSettingTab extends PluginSettingTab {
   }
 
   private generateCollectionId(): string {
-    return 'collection_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+    return 'collection_' + Date.now() + '_' + Math.random().toString(36).substring(2, 11);
   }
 
   private createNewCollection(): Collection {
@@ -128,22 +128,26 @@ export class AutoTaggerSettingTab extends PluginSettingTab {
     containerEl.empty();
     containerEl.addClass('auto-tagger-settings');
 
-    containerEl.createEl('h2', { text: 'Auto Tagger Settings' });
+    new Setting(containerEl)
+      .setName('Auto tagger settings')
+      .setHeading();
     
     const introText = containerEl.createEl('div', { 
       cls: 'setting-item-description auto-tagger-intro'
     });
     introText.createEl('span', { text: 'Create ' });
     introText.createEl('strong', { text: 'collections' });
-    introText.createEl('span', { text: ' to organize your notes with specialized classifiers. Each collection has its own scope, tag filters, and trained classifier. When a note matches multiple collections, suggestions are merged.' });
+    introText.createEl('span', { text: ' to organize your notes with specialized classifiers. each collection has its own scope, tag filters, and trained classifier. when a note matches multiple collections, suggestions are merged.' });
     introText.createEl('br');
     introText.createEl('br');
     introText.createEl('span', { text: '💡 ' });
-    introText.createEl('strong', { text: 'Quick Start:' });
-    introText.createEl('span', { text: ' Click "+ New Collection", configure scope and filters, then click "Train".' });
+    introText.createEl('strong', { text: 'Quick start:' });
+    introText.createEl('span', { text: ' click the "+ new collection" button, configure scope and filters, then click "train".' });
 
     // Global Settings
-    containerEl.createEl('h3', { text: 'Global Settings' });
+    new Setting(containerEl)
+      .setName('Global settings')
+      .setHeading();
 
     new Setting(containerEl)
       .setName('Auto-tag on save')
@@ -166,13 +170,15 @@ export class AutoTaggerSettingTab extends PluginSettingTab {
         }));
 
     // Collections Section
-    containerEl.createEl('h3', { text: 'Collections' });
+    new Setting(containerEl)
+      .setName('Collections')
+      .setHeading();
 
     new Setting(containerEl)
-      .setName('Add Collection')
+      .setName('Add collection')
       .setDesc('Create a new collection with its own scope, filters, and classifier')
       .addButton(button => button
-        .setButtonText('+ New Collection')
+        .setButtonText('+ new collection')
         .setCta()
         .onClick(async () => {
           const newCollection = this.createNewCollection();
@@ -237,15 +243,18 @@ export class AutoTaggerSettingTab extends PluginSettingTab {
       .setWarning()
       .setTooltip('Delete this collection')
       .onClick(async () => {
-        if (confirm(`Are you sure you want to delete "${collection.name}"?`)) {
-          this.plugin.settings.collections = this.plugin.settings.collections
-            .filter(c => c.id !== collection.id);
-          if (this.plugin.settings.activeCollectionId === collection.id) {
-            this.plugin.settings.activeCollectionId = this.plugin.settings.collections[0]?.id || null;
-          }
-          await this.plugin.saveSettings();
-          this.display();
+        const collectionName = collection.name;
+        new Notice(`Delete collection "${collectionName}"? This cannot be undone. Save your work first!`);
+        // Give user time to cancel by clicking away
+        await new Promise(resolve => setTimeout(resolve, 3000));
+        
+        this.plugin.settings.collections = this.plugin.settings.collections
+          .filter(c => c.id !== collection.id);
+        if (this.plugin.settings.activeCollectionId === collection.id) {
+          this.plugin.settings.activeCollectionId = this.plugin.settings.collections[0]?.id || null;
         }
+        await this.plugin.saveSettings();
+        this.display();
       }));
 
     // Collection Name
@@ -283,13 +292,15 @@ export class AutoTaggerSettingTab extends PluginSettingTab {
       });
     } else {
       collectionContainer.createEl('p', {
-        text: 'Not trained yet. Use the "Train" button below.',
+        text: 'Not trained. Use the "Train" button below.',
         cls: 'setting-item-description auto-tagger-status'
       });
     }
 
     // Folder Scope
-    collectionContainer.createEl('h4', { text: 'Folder Scope' });
+    new Setting(collectionContainer)
+      .setName('Folder scope')
+      .setHeading();
 
     new Setting(collectionContainer)
       .setName('Folder mode')
@@ -310,7 +321,7 @@ export class AutoTaggerSettingTab extends PluginSettingTab {
         .setName('Include folders')
         .setDesc('Comma-separated list of folder paths')
         .addTextArea(text => text
-          .setPlaceholder('folder1, folder2/subfolder')
+          .setPlaceholder('Folder1, Folder2/Subfolder')
           .setValue(collection.includeFolders.join(', '))
           .onChange(async (value) => {
             collection.includeFolders = value
@@ -326,7 +337,7 @@ export class AutoTaggerSettingTab extends PluginSettingTab {
         .setName('Exclude folders')
         .setDesc('Comma-separated list of folder paths')
         .addTextArea(text => text
-          .setPlaceholder('archive, templates')
+          .setPlaceholder('Archive, Templates')
           .setValue(collection.excludeFolders.join(', '))
           .onChange(async (value) => {
             collection.excludeFolders = value
@@ -338,13 +349,15 @@ export class AutoTaggerSettingTab extends PluginSettingTab {
     }
 
     // Tag Filtering
-    collectionContainer.createEl('h4', { text: 'Tag Filtering' });
+    new Setting(collectionContainer)
+      .setName('Tag filtering')
+      .setHeading();
 
     new Setting(collectionContainer)
       .setName('Tag whitelist')
       .setDesc('Only suggest these tags (comma-separated). Leave empty for all learned tags')
       .addTextArea(text => text
-        .setPlaceholder('project, important, review')
+        .setPlaceholder('Project, Important, Review')
         .setValue(collection.whitelist.join(', '))
         .onChange(async (value) => {
           collection.whitelist = value
@@ -358,7 +371,7 @@ export class AutoTaggerSettingTab extends PluginSettingTab {
       .setName('Tag blacklist')
       .setDesc('Never suggest or train on these tags (comma-separated)')
       .addTextArea(text => text
-        .setPlaceholder('todo, draft, private')
+        .setPlaceholder('Todo, Draft, Private')
         .setValue(collection.blacklist.join(', '))
         .onChange(async (value) => {
           collection.blacklist = value
@@ -387,7 +400,7 @@ export class AutoTaggerSettingTab extends PluginSettingTab {
           
           if (isBlacklisted) {
             tagSetting.addButton(button => button
-              .setButtonText('Remove from Blacklist')
+              .setButtonText('Remove from blacklist')
               .onClick(async () => {
                 collection.blacklist = collection.blacklist.filter(t => t !== tag);
                 await this.plugin.saveSettings();
@@ -410,7 +423,9 @@ export class AutoTaggerSettingTab extends PluginSettingTab {
     }
 
     // Classification Parameters
-    collectionContainer.createEl('h4', { text: 'Classification Parameters' });
+    new Setting(collectionContainer)
+      .setName('Classification parameters')
+      .setHeading();
 
     new Setting(collectionContainer)
       .setName('Similarity threshold')
@@ -437,10 +452,12 @@ export class AutoTaggerSettingTab extends PluginSettingTab {
         }));
 
     // Actions
-    collectionContainer.createEl('h4', { text: 'Actions' });
+    new Setting(collectionContainer)
+      .setName('Actions')
+      .setHeading();
 
     const actionsSetting = new Setting(collectionContainer)
-      .setName('Classifier Actions');
+      .setName('Classifier actions');
 
     actionsSetting.addButton(button => button
       .setButtonText('Train')
@@ -452,16 +469,16 @@ export class AutoTaggerSettingTab extends PluginSettingTab {
       }));
 
     actionsSetting.addButton(button => button
-      .setButtonText('Debug Stats')
+      .setButtonText('Debug stats')
       .setTooltip('Show classifier statistics')
       .onClick(() => {
         const classifier = this.plugin.classifiers?.get(collection.id);
         if (classifier) {
           const stats = classifier.getStats();
           const msg = `Collection: ${collection.name}\nTags: ${stats.totalTags}\nDocuments: ${stats.totalDocs}`;
-          alert(msg);
+          new Notice(msg, 5000);
         } else {
-          alert('Classifier not loaded');
+          new Notice('Classifier not loaded');
         }
       }));
   }

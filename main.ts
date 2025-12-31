@@ -1,4 +1,4 @@
-import { App, Modal, Notice, Plugin, TFile, TFolder, parseYaml, stringifyYaml } from 'obsidian';
+import { App, Modal, Notice, Plugin, TFile, parseYaml, stringifyYaml } from 'obsidian';
 import { EmbeddingClassifier } from './embedding-classifier';
 import { AutoTaggerSettings, AutoTaggerSettingTab, DEFAULT_SETTINGS, migrateSettings, Collection } from './settings';
 
@@ -6,14 +6,14 @@ export default class AutoTaggerPlugin extends Plugin {
   settings: AutoTaggerSettings;
   classifiers: Map<string, EmbeddingClassifier> = new Map();
 
-  private debug(...args: any[]) {
+  private debug(...args: unknown[]) {
     if (this.settings?.debugToConsole) {
-      console.log(...args);
+      console.debug(...args);
     }
   }
 
   async onload() {
-    console.log('[Auto Tagger] Loading plugin...');
+    console.debug('[Auto Tagger] Loading plugin...');
     
     await this.loadSettings();
     
@@ -38,7 +38,7 @@ export default class AutoTaggerPlugin extends Plugin {
     }
 
     // Add ribbon icon
-    this.addRibbonIcon('tag', 'Auto Tagger: Suggest tags', () => {
+    this.addRibbonIcon('tag', 'Auto tagger: suggest tags', () => {
       this.showTagSuggestions();
     });
 
@@ -175,7 +175,7 @@ export default class AutoTaggerPlugin extends Plugin {
   /**
    * Extract frontmatter and content from a file
    */
-  async parseFile(file: TFile): Promise<{ frontmatter: any, content: string, raw: string }> {
+  async parseFile(file: TFile): Promise<{ frontmatter: Record<string, unknown>, content: string, raw: string }> {
     const raw = await this.app.vault.read(file);
     
     const match = raw.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$/);
@@ -184,7 +184,7 @@ export default class AutoTaggerPlugin extends Plugin {
       try {
         const frontmatter = parseYaml(match[1]) || {};
         return { frontmatter, content: match[2], raw };
-      } catch (e) {
+      } catch (_e) {
         return { frontmatter: {}, content: raw, raw };
       }
     }
@@ -195,11 +195,11 @@ export default class AutoTaggerPlugin extends Plugin {
   /**
    * Get tags from frontmatter, filtering blacklist for a specific collection
    */
-  getTagsFromFrontmatter(frontmatter: any, collection: Collection): string[] {
+  getTagsFromFrontmatter(frontmatter: Record<string, unknown>, collection: Collection): string[] {
     let tags: string[] = [];
     
     if (Array.isArray(frontmatter.tags)) {
-      tags = frontmatter.tags.map((t: any) => String(t).toLowerCase());
+      tags = frontmatter.tags.map((t: unknown) => String(t).toLowerCase());
     } else if (typeof frontmatter.tags === 'string') {
       tags = [frontmatter.tags.toLowerCase()];
     }
@@ -536,7 +536,7 @@ export default class AutoTaggerPlugin extends Plugin {
    * Apply tags to a file (collection-aware)
    */
   async applyTags(file: TFile, newTags: string[], mode: 'integrate' | 'overwrite' = 'integrate'): Promise<void> {
-    const { frontmatter, content, raw } = await this.parseFile(file);
+    const { frontmatter, content } = await this.parseFile(file);
     const applicableCollections = this.getApplicableCollections(file);
     
     let finalTags: string[];
@@ -547,7 +547,7 @@ export default class AutoTaggerPlugin extends Plugin {
       // Get existing tags and filter out blacklisted ones from any applicable collection
       let existingTags: string[] = [];
       if (Array.isArray(frontmatter.tags)) {
-        existingTags = frontmatter.tags.map((t: any) => String(t).toLowerCase());
+        existingTags = frontmatter.tags.map((t: unknown) => String(t).toLowerCase());
       } else if (typeof frontmatter.tags === 'string') {
         existingTags = [frontmatter.tags.toLowerCase()];
       }
@@ -752,7 +752,7 @@ class TagSuggestionModal extends Modal {
   onOpen() {
     const { contentEl } = this;
     
-    contentEl.createEl('h2', { text: 'Tag Suggestions' });
+    contentEl.createEl('h3', { text: 'Tag suggestions' });
     contentEl.createEl('p', { text: `File: ${this.file.basename}` });
     
     if (this.existingTags.length > 0) {
@@ -856,7 +856,7 @@ class CollectionSelectorModal extends Modal {
   onOpen() {
     const { contentEl } = this;
     
-    contentEl.createEl('h2', { text: 'Select Collection' });
+    contentEl.createEl('h3', { text: 'Select collection' });
     contentEl.createEl('p', { text: 'Choose which collection to use:' });
     
     const listContainer = contentEl.createEl('div', { cls: 'auto-tagger-collection-list' });
@@ -871,7 +871,7 @@ class CollectionSelectorModal extends Modal {
       });
       
       const allTitle = allItem.createEl('div', { cls: 'setting-item-name auto-tagger-collection-title' });
-      allTitle.textContent = '🌐 All Collections';
+      allTitle.textContent = '🌐 All collections';
       
       const allDesc = allItem.createEl('div', { cls: 'setting-item-description' });
       allDesc.textContent = `Execute operation on all ${this.collections.length} enabled collections`;
@@ -895,14 +895,11 @@ class CollectionSelectorModal extends Modal {
         const date = new Date(collection.lastTrained).toLocaleString();
         desc.textContent += ` | Last trained: ${date}`;
       } else {
-        desc.textContent += ' | Not trained yet';
+        desc.textContent += ' | Not trained';
       }
     }
     
-    const buttonContainer = contentEl.createEl('div');
-    buttonContainer.style.marginTop = '20px';
-    buttonContainer.style.display = 'flex';
-    buttonContainer.style.justifyContent = 'flex-end';
+    const buttonContainer = contentEl.createEl('div', { cls: 'modal-button-container' });
     
     const cancelButton = buttonContainer.createEl('button', { text: 'Cancel' });
     cancelButton.addEventListener('click', () => this.close());

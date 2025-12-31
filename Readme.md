@@ -219,10 +219,26 @@ npm install
 
 ```bash
 npm run dev      # Development build
-npm run build    # Production build  
+npm run build    # Production build with linting and type checking
+npm run lint     # Check code for guideline violations
+npm run lint:fix # Auto-fix linting issues where possible
 npm run deploy   # Build and deploy to vault
 npm run watch    # Development build + deploy
 ```
+
+### Code Quality
+
+The project uses ESLint with the official [Obsidian ESLint plugin](https://github.com/obsidianmd/eslint-plugin) to enforce community plugin guidelines:
+
+- **Automatic checks** - Linting runs on every build
+- **Obsidian rules** - Catches violations before submission
+  - No forbidden DOM elements (innerHTML security)
+  - No inline styles (use CSS classes)
+  - Proper heading APIs (Setting.setHeading())
+  - Sentence case for UI text
+  - iOS-compatible regex patterns
+- **TypeScript rules** - Unused variables, explicit any types
+- **Auto-fix** - Many issues can be fixed automatically with `npm run lint:fix`
 
 ### Configuration
 

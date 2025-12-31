@@ -26,9 +26,9 @@ export class EmbeddingClassifier {
     this.debugEnabled = enabled;
   }
 
-  private debug(...args: any[]) {
+  private debug(...args: unknown[]) {
     if (this.debugEnabled) {
-      console.log(...args);
+      console.debug(...args);
     }
   }
 
@@ -261,9 +261,6 @@ export class EmbeddingClassifier {
       ? whitelist.filter(t => this.tagEmbeddings[t])
       : Object.keys(this.tagEmbeddings);
     
-    // Build synonym map (normalized forms)
-    const tagSynonyms = this.buildTagSynonymMap(tags);
-    
     // Normalize existing tags to detect synonyms
     const existingNormalized = new Set(existingTags.map(t => this.normalizeTag(t)));
     
@@ -362,10 +359,10 @@ export class EmbeddingClassifier {
     text = text.replace(/^---[\s\S]*?---/, '');
     
     // Remove markdown links but keep text
-    text = text.replace(/\[([^\]]+)\]\([^\)]+\)/g, '$1');
+    text = text.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1');
     
     // Remove markdown images
-    text = text.replace(/!\[([^\]]*)\]\([^\)]+\)/g, '');
+    text = text.replace(/!\[([^\]]*)\]\([^)]+\)/g, '');
     
     // Remove code blocks
     text = text.replace(/```[\s\S]*?```/g, '');

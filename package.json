@@ -5,7 +5,9 @@
   "main": "main.js",
   "scripts": {
     "dev": "node esbuild.config.mjs",
-    "build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
+    "build": "npm run lint && tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
+    "lint": "eslint . --ext .ts",
+    "lint:fix": "eslint . --ext .ts --fix",
     "deploy": "npm run build && powershell -File deploy.ps1",
     "watch": "node esbuild.config.mjs && powershell -File deploy.ps1"
   },
@@ -21,9 +23,16 @@
   "author": "Alessandro Canepa",
   "license": "MIT",
   "devDependencies": {
+    "@eslint/json": "^0.14.0",
     "@types/node": "^16.11.6",
+    "@typescript-eslint/eslint-plugin": "^5.62.0",
+    "@typescript-eslint/parser": "^5.62.0",
+    "@typescript-eslint/utils": "^8.51.0",
     "esbuild": "0.17.3",
+    "eslint": "^9.39.2",
+    "eslint-plugin-obsidianmd": "^0.1.9",
     "obsidian": "latest",
-    "typescript": "4.7.4"
+    "typescript": "4.7.4",
+    "typescript-eslint": "^8.51.0"
   }
 }

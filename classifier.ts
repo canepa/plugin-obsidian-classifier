@@ -56,7 +56,7 @@ export class NaiveBayesClassifier {
   classify(
     text: string, 
     whitelist?: string[], 
-    threshold: number = 0.01,
+    _threshold: number = 0.01,
     maxResults: number = 5,
     useClassBalancing: boolean = true
   ): Array<{tag: string, probability: number}> {
@@ -226,10 +226,10 @@ export class NaiveBayesClassifier {
     text = text.replace(/^---[\s\S]*?---/, '');
     
     // Remove markdown links but keep text
-    text = text.replace(/\[([^\]]+)\]\([^\)]+\)/g, '$1');
+    text = text.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1');
     
     // Remove markdown images
-    text = text.replace(/!\[([^\]]*)\]\([^\)]+\)/g, '');
+    text = text.replace(/!\[([^\]]*)\]\([^)]+\)/g, '');
     
     // Remove code blocks
     text = text.replace(/```[\s\S]*?```/g, '');
