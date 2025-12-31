@@ -1,5 +1,5 @@
 {
-  "name": "obsidian-auto-tagger",
+  "name": "auto-tagger",
   "version": "2.0.0",
   "description": "Multi-collection semantic tag suggestions with embedding-based classifiers",
   "main": "main.js",
