@@ -153,7 +153,7 @@ export class AutoTaggerSettingTab extends PluginSettingTab {
 
     // Global Settings
     new Setting(containerEl)
-      .setName('Global settings')
+      .setName('Global')\
       .setHeading();
 
     new Setting(containerEl)
