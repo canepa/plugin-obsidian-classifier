@@ -20,8 +20,7 @@ jobs:
 
       - name: Build plugin
         run: |
-          npm ci --omit=dev
-          npm install --no-save esbuild obsidian typescript
+          npm install --production=false
           npm run build:ci
 
       - name: Create release
