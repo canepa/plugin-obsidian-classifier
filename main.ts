@@ -231,7 +231,7 @@ export default class AutoTaggerPlugin extends Plugin {
       const tags = this.getTagsFromFrontmatter(frontmatter, collection);
       
       if (tags.length > 0) {
-        await classifier.train(content, tags);
+        classifier.train(content, tags);
         taggedFiles.push(file);
       }
     }
@@ -710,7 +710,7 @@ export default class AutoTaggerPlugin extends Plugin {
         collection.classifierData = classifier.export();
       }
     }
-    this.saveSettings();
+    void this.saveSettings();
   }
 }
 

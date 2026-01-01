@@ -148,7 +148,7 @@ export class EmbeddingClassifier {
   /**
    * Finalize training by processing buffered data with complete vocabulary statistics
    */
-  async finalizeTraining(): Promise<void> {
+  finalizeTraining(): void {
     this.debug(`[EmbeddingClassifier] Processing ${this.trainingBuffer.length} documents with vocabulary of ${this.docFrequency.size} words...`);
 
     // Second pass: generate embeddings with complete IDF statistics and accumulate for each tag
@@ -239,13 +239,13 @@ export class EmbeddingClassifier {
   /**
    * Classify a document and return tag suggestions with similarity scores
    */
-  async classify(
+  classify(
     text: string,
     whitelist?: string[],
     minSimilarity: number = 0.1,
     maxResults: number = 5,
     existingTags: string[] = []
-  ): Promise<Array<{ tag: string, probability: number }>> {
+  ): Array<{ tag: string, probability: number }> {
     if (Object.keys(this.tagEmbeddings).length === 0) {
       this.debug('[EmbeddingClassifier] No tags trained');
       return [];

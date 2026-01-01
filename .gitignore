@@ -21,6 +21,7 @@ npm-debug.log*
 # Environment
 .env
 .env.local
+deploy.config.ps1
 
 # Temporary files
 *.tmp

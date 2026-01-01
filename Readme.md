@@ -1,6 +1,6 @@
 # Auto Tagger for Obsidian
 
-![Version](https://img.shields.io/badge/version-2.0.2-blue)
+![Version](https://img.shields.io/badge/version-2.0.7-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
 Automatically suggest and apply tags to your notes using multiple semantic classifiers. Create specialized collections for different note types, each with its own training scope and tag vocabulary.
@@ -242,10 +242,19 @@ The project uses ESLint with the official [Obsidian ESLint plugin](https://githu
 
 ### Configuration
 
-Update `deploy.ps1` with your vault path:
-```powershell
-$pluginDir = "C:\path\to\vault\.obsidian\plugins\auto-tagger"
-```
+For development deployment:
+
+1. Copy the example configuration:
+   ```bash
+   cp deploy.config.example.ps1 deploy.config.ps1
+   ```
+
+2. Update `deploy.config.ps1` with your vault path:
+   ```powershell
+   $pluginDir = "C:\path\to\vault\.obsidian\plugins\obsidian-auto-tagger"
+   ```
+
+3. The `deploy.config.ps1` file is git-ignored to keep your local paths private
 
 ## 📄 License
 

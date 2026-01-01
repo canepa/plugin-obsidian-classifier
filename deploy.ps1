@@ -1,5 +1,13 @@
 # Deploy script for Obsidian plugin
-$pluginDir = "C:\Users\a.canepa\Documents\Work\.obsidian\plugins\obsidian-auto-tagger"
+
+# Load configuration
+if (-not (Test-Path "deploy.config.ps1")) {
+    Write-Host "Error: deploy.config.ps1 not found." -ForegroundColor Red
+    Write-Host "Please copy deploy.config.example.ps1 to deploy.config.ps1 and configure your vault path." -ForegroundColor Yellow
+    exit 1
+}
+
+. .\deploy.config.ps1
 
 # Create plugin directory if it doesn't exist
 if (-not (Test-Path $pluginDir)) {

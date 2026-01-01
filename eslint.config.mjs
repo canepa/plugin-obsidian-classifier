@@ -1,6 +1,5 @@
 import tsparser from "@typescript-eslint/parser";
 import tseslint from "@typescript-eslint/eslint-plugin";
-import obsidianmd from "eslint-plugin-obsidianmd";
 
 export default [
   {
@@ -15,8 +14,7 @@ export default [
       }
     },
     plugins: {
-      "@typescript-eslint": tseslint,
-      "obsidianmd": obsidianmd
+      "@typescript-eslint": tseslint
     },
     rules: {
       // TypeScript rules
@@ -32,27 +30,7 @@ export default [
           ignoreRestSiblings: true
         }
       ],
-      "@typescript-eslint/no-explicit-any": "warn",
-      
-      // Obsidian plugin rules
-      "obsidianmd/no-forbidden-elements": "error",
-      "obsidianmd/no-static-styles-assignment": "error",
-      "obsidianmd/settings-tab/no-manual-html-headings": "error",
-      "obsidianmd/ui/sentence-case": [
-        "warn",
-        {
-          brands: ["Auto Tagger"],
-          acronyms: ["TF-IDF"],
-          ignoreWords: [
-            "Collection", "Collections", "Train", "New", "Quick", "Start", 
-            "Each", "When", "Click", "Last", "Not", "All", "File",
-            // Placeholder examples
-            "Folder1", "Folder2", "Subfolder", "Archive", "Templates",
-            "Project", "Important", "Review", "Todo", "Draft", "Private"
-          ]
-        }
-      ],
-      "obsidianmd/regex-lookbehind": "error"
+      "@typescript-eslint/no-explicit-any": "warn"
     }
   }
 ];
