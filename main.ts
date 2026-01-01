@@ -70,13 +70,13 @@ export default class AutoTaggerPlugin extends Plugin {
     this.addCommand({
       id: 'tag-all-notes-integrate',
       name: 'Batch tag all notes (from all collections)',
-      callback: () => this.tagAllNotes('integrate')
+      callback: () => void this.tagAllNotes('integrate')
     });
 
     this.addCommand({
       id: 'tag-folder-integrate',
       name: 'Batch tag folder',
-      callback: () => this.tagCurrentFolder('integrate')
+      callback: () => void this.tagCurrentFolder('integrate')
     });
 
     // Auto-tag on save
@@ -237,7 +237,7 @@ export default class AutoTaggerPlugin extends Plugin {
     }
     
     // Finalize training
-    await classifier.finalizeTraining();
+    classifier.finalizeTraining();
     
     this.debug(`[Training] Collection "${collection.name}": trained on ${taggedFiles.length} tagged notes`);
     
@@ -409,33 +409,6 @@ export default class AutoTaggerPlugin extends Plugin {
   }
 
   /**
-   * onst classifier = this.classifiers.get(collectionId);
-    if (!classifier) {
-      new Notice(`Collection "${collection.name}" has no trained classifier`);
-      return;
-    }
-
-    const stats = classifier.getStats();
-    const knownTags = classifier.getAllTags();
-    
-    let message = `Collection: ${collection.name}\n\n`;
-    message += `Classifier Stats:\n`;
-    message += `- Trained on: ${stats.totalDocs} documents\n`;
-    message += `- Unique tags: ${stats.totalTags}\n`;
-    message += `- Known tags: ${knownTags.join(', ')}\n`;
-    message += `\nScope: ${collection.folderMode}`;
-    
-    if (collection.folderMode === 'include') {
-      message += `\nIncluded folders: ${collection.includeFolders.join(', ')}`;
-    } else if (collection.folderMode === 'exclude') {
-      message += `\nExcluded folders: ${collection.excludeFolders.join(', ')}`;
-    }
-    
-    new Notice(message, 10000);
-    console.debug(message);
-  }
-
-  /**
    * Legacy method - debug first collection
    */
   debugClassifier(): void {
@@ -469,7 +442,7 @@ export default class AutoTaggerPlugin extends Plugin {
       const existingTags = this.getTagsFromFrontmatter(frontmatter, collection);
       const whitelist = collection.whitelist.length > 0 ? collection.whitelist : undefined;
       
-      const suggestions = await classifier.classify(
+      const suggestions = classifier.classify(
         content,
         whitelist,
         collection.threshold,
@@ -641,20 +614,27 @@ export default class AutoTaggerPlugin extends Plugin {
     const notice = new Notice(`${modeText} tags for ${files.length} files...`, 0);
     
     let tagged = 0;
+    let failed = 0;
     
     for (const file of files) {
-      const suggestions = await this.getSuggestions(file);
-      
-      if (suggestions.length > 0) {
-        const tags = suggestions.map(s => s.tag);
-        await this.applyTags(file, tags, mode);
-        tagged++;
+      try {
+        const suggestions = await this.getSuggestions(file);
+        
+        if (suggestions.length > 0) {
+          const tags = suggestions.map(s => s.tag);
+          await this.applyTags(file, tags, mode);
+          tagged++;
+        }
+      } catch (e) {
+        console.error(`Failed to tag file ${file.path}:`, e);
+        failed++;
       }
     }
     
     notice.hide();
     const actionText = mode === 'overwrite' ? 'overwritten' : 'updated (blacklisted tags removed)';
-    new Notice(`${tagged} files ${actionText}`);
+    const failedText = failed > 0 ? ` (${failed} failed)` : '';
+    new Notice(`${tagged} files ${actionText}${failedText}`);
   }
 
   /**
@@ -686,20 +666,27 @@ export default class AutoTaggerPlugin extends Plugin {
     const notice = new Notice(`${modeText} tags for ${files.length} files in ${folder.name}...`, 0);
     
     let tagged = 0;
+    let failed = 0;
     
     for (const f of files) {
-      const suggestions = await this.getSuggestions(f);
-      
-      if (suggestions.length > 0) {
-        const tags = suggestions.map(s => s.tag);
-        await this.applyTags(f, tags, mode);
-        tagged++;
+      try {
+        const suggestions = await this.getSuggestions(f);
+        
+        if (suggestions.length > 0) {
+          const tags = suggestions.map(s => s.tag);
+          await this.applyTags(f, tags, mode);
+          tagged++;
+        }
+      } catch (e) {
+        console.error(`Failed to tag file ${f.path}:`, e);
+        failed++;
       }
     }
     
     notice.hide();
     const actionText = mode === 'overwrite' ? 'overwritten' : 'updated (blacklisted tags removed)';
-    new Notice(`${tagged} files ${actionText} in ${folder.name}`);
+    const failedText = failed > 0 ? ` (${failed} failed)` : '';
+    new Notice(`${tagged} files ${actionText} in ${folder.name}${failedText}`);
   }
 
   onunload() {

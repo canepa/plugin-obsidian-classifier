@@ -1,6 +1,13 @@
 import { App, Plugin, PluginSettingTab, Setting, Notice } from 'obsidian';
 import type { EmbeddingClassifierData, EmbeddingClassifier } from './embedding-classifier';
 
+export type AutoTaggerPlugin = Plugin & {
+  settings: AutoTaggerSettings;
+  classifiers: Map<string, EmbeddingClassifier>;
+  saveSettings(): Promise<void>;
+  trainCollection(collectionId: string): Promise<void>;
+};
+
 export interface Collection {
   id: string;
   name: string;
@@ -101,19 +108,9 @@ export function migrateSettings(data: unknown): AutoTaggerSettings {
 }
 
 export class AutoTaggerSettingTab extends PluginSettingTab {
-  plugin: Plugin & {
-    settings: AutoTaggerSettings;
-    classifiers: Map<string, EmbeddingClassifier>;
-    saveSettings(): Promise<void>;
-    trainCollection(collectionId: string): Promise<void>;
-  };
+  plugin: AutoTaggerPlugin;
 
-  constructor(app: App, plugin: Plugin & {
-    settings: AutoTaggerSettings;
-    classifiers: Map<string, EmbeddingClassifier>;
-    saveSettings(): Promise<void>;
-    trainCollection(collectionId: string): Promise<void>;
-  }) {
+  constructor(app: App, plugin: AutoTaggerPlugin) {
     super(app, plugin);
     this.plugin = plugin;
   }
@@ -230,7 +227,7 @@ export class AutoTaggerSettingTab extends PluginSettingTab {
     // Duplicate button
     headerSetting.addButton(button => button
       .setButtonText('Duplicate')
-      .setTooltip('Create a copy of this collection')
+      .setTooltip('Create a copy of this collection (trained data will not be copied)')
       .onClick(async () => {
         const newCollection: Collection = {
           ...collection,
@@ -241,6 +238,7 @@ export class AutoTaggerSettingTab extends PluginSettingTab {
         };
         this.plugin.settings.collections.push(newCollection);
         await this.plugin.saveSettings();
+        new Notice(`Created copy: "${newCollection.name}" (needs training)`);
         this.display();
       }));
 
@@ -250,18 +248,25 @@ export class AutoTaggerSettingTab extends PluginSettingTab {
       .setWarning()
       .setTooltip('Delete this collection')
       .onClick(async () => {
-        const collectionName = collection.name;
-        new Notice(`Delete collection "${collectionName}"? This cannot be undone. Save your work first!`);
-        // Give user time to cancel by clicking away
-        await new Promise(resolve => setTimeout(resolve, 3000));
+        const confirmed = confirm(
+          `Delete collection "${collection.name}"?\n\n` +
+          `This will permanently remove the collection and its trained classifier.\n` +
+          `This action cannot be undone.`
+        );
         
-        this.plugin.settings.collections = this.plugin.settings.collections
-          .filter(c => c.id !== collection.id);
-        if (this.plugin.settings.activeCollectionId === collection.id) {
-          this.plugin.settings.activeCollectionId = this.plugin.settings.collections[0]?.id || null;
+        if (confirmed) {
+          this.plugin.settings.collections = this.plugin.settings.collections
+            .filter(c => c.id !== collection.id);
+          
+          if (this.plugin.settings.activeCollectionId === collection.id) {
+            this.plugin.settings.activeCollectionId = this.plugin.settings.collections[0]?.id || null;
+          }
+          
+          this.plugin.classifiers.delete(collection.id);
+          await this.plugin.saveSettings();
+          new Notice(`Deleted collection "${collection.name}"`);
+          this.display();
         }
-        await this.plugin.saveSettings();
-        this.display();
       }));
 
     // Collection Name
@@ -272,15 +277,22 @@ export class AutoTaggerSettingTab extends PluginSettingTab {
           .setValue(collection.name)
           .setPlaceholder('Enter collection name')
           .onChange((value) => {
-            collection.name = value || 'Unnamed Collection';
+            const trimmed = value.trim();
+            collection.name = trimmed.length > 0 ? trimmed : 'Unnamed Collection';
           });
         
         // Update header and save on blur
-        text.inputEl.addEventListener('blur', () => {
+        text.inputEl.addEventListener('blur', async () => {
+          // Ensure name is not empty
+          if (!collection.name.trim()) {
+            collection.name = 'Unnamed Collection';
+            text.setValue(collection.name);
+          }
+          
           // Update the header title
           const headerNameEl = headerSetting.nameEl;
           headerNameEl.textContent = collection.name;
-          void this.plugin.saveSettings();
+          await this.plugin.saveSettings();
         });
       });
 

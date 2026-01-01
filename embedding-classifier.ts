@@ -12,14 +12,21 @@ export interface EmbeddingClassifierData {
 }
 
 export class EmbeddingClassifier {
-  private dimensions = 1024; // Increased from 384 to reduce hash collisions
+  // Configuration constants
+  private readonly DIMENSIONS = 1024;
+  private readonly MIN_WORD_OVERLAP = 0.40;
+  private readonly HIGH_OVERLAP_THRESHOLD = 0.6;
+  private readonly ADDITIONAL_SIMILARITY_REQUIRED = 0.25;
+  private readonly COMMON_WORD_THRESHOLD = 0.6;
+  private readonly DISTINCTIVE_IDF_THRESHOLD = 2.0;
+  private readonly TOP_DISTINCTIVE_WORDS = 20;
+  
   private tagEmbeddings: Record<string, number[]> = {};
   private tagDocCounts: Record<string, number> = {};
   private totalDocs: number = 0;
-  private embeddingCache: Map<string, number[]> = new Map();
-  private docFrequency: Map<string, number> = new Map(); // Word -> number of docs containing it
-  private trainingBuffer: Array<{ text: string, tags: string[] }> = []; // For two-pass training
-  private tagDistinctiveWords: Record<string, string[]> = {}; // Cache of distinctive words per tag
+  private docFrequency: Map<string, number> = new Map();
+  private trainingBuffer: Array<{ text: string, tags: string[] }> = [];
+  private tagDistinctiveWords: Record<string, string[]> = {};
   private debugEnabled: boolean = false;
 
   setDebugEnabled(enabled: boolean) {
@@ -48,13 +55,13 @@ export class EmbeddingClassifier {
     }
 
     // Create a fixed-size embedding vector
-    const embedding = new Array(this.dimensions).fill(0);
+    const embedding = new Array(this.DIMENSIONS).fill(0);
 
     // Use multiple hash functions to reduce collisions
     for (const [word, freq] of Object.entries(wordFreq)) {
       // Skip very common words (appear in >60% of documents) - they don't discriminate
       const docFreq = this.docFrequency.get(word) || 0;
-      if (this.totalDocs > 0 && docFreq / this.totalDocs > 0.6) {
+      if (this.totalDocs > 0 && docFreq / this.totalDocs > this.COMMON_WORD_THRESHOLD) {
         continue;
       }
 
@@ -76,9 +83,9 @@ export class EmbeddingClassifier {
       const hash2 = this.hashWord(word + '_salt1');
       const hash3 = this.hashWord(word + '_salt2');
 
-      embedding[hash1 % this.dimensions] += weight * 0.5;
-      embedding[hash2 % this.dimensions] += weight * 0.3;
-      embedding[hash3 % this.dimensions] += weight * 0.2;
+      embedding[hash1 % this.DIMENSIONS] += weight * 0.5;
+      embedding[hash2 % this.DIMENSIONS] += weight * 0.3;
+      embedding[hash3 % this.DIMENSIONS] += weight * 0.2;
     }
 
     // Normalize only if requested (don't normalize during training accumulation)
@@ -158,7 +165,7 @@ export class EmbeddingClassifier {
 
       for (const tag of tags) {
         if (!this.tagEmbeddings[tag]) {
-          this.tagEmbeddings[tag] = new Array(this.dimensions).fill(0);
+          this.tagEmbeddings[tag] = new Array(this.DIMENSIONS).fill(0);
           this.tagDocCounts[tag] = 0;
         }
 
@@ -222,17 +229,17 @@ export class EmbeddingClassifier {
           const idf = Math.log((this.totalDocs + 1) / docFreq);
 
           // Only consider distinctive words (rare across corpus)
-          if (idf > 2.0) { // Appears in <14% of documents
+          if (idf > this.DISTINCTIVE_IDF_THRESHOLD) {
             tagWordScores.set(word, (tagWordScores.get(word) || 0) + idf);
           }
         }
       }
     }
 
-    // Return top 20 most distinctive words for this tag
+    // Return top distinctive words for this tag
     return Array.from(tagWordScores.entries())
       .sort((a, b) => b[1] - a[1])
-      .slice(0, 20)
+      .slice(0, this.TOP_DISTINCTIVE_WORDS)
       .map(([word]) => word);
   }
 
@@ -283,12 +290,12 @@ export class EmbeddingClassifier {
         ? tagWords.filter(w => docWords.has(w)).length / tagWords.length
         : 1.0; // If no distinctive words cached, don't filter
 
-      // Require 40% word overlap minimum - tags need strong word evidence
+      // Require minimum word overlap - tags need strong word evidence
       // Also apply much stricter similarity requirement for borderline overlap
-      const meetsOverlapThreshold = overlap >= 0.40;
-      const meetsSimilarityThreshold = overlap >= 0.6
+      const meetsOverlapThreshold = overlap >= this.MIN_WORD_OVERLAP;
+      const meetsSimilarityThreshold = overlap >= this.HIGH_OVERLAP_THRESHOLD
         ? similarity >= minSimilarity  // Very high overlap: normal threshold
-        : similarity >= minSimilarity + 0.25;  // Lower overlap: much higher similarity required
+        : similarity >= minSimilarity + this.ADDITIONAL_SIMILARITY_REQUIRED;  // Lower overlap: much higher similarity required
 
       if (meetsOverlapThreshold && meetsSimilarityThreshold) {
         similarities.push({ tag, probability: similarity, overlap });
@@ -332,23 +339,6 @@ export class EmbeddingClassifier {
     };
 
     return synonymMap[normalized] || normalized;
-  }
-
-  /**
-   * Build synonym map for deduplication
-   */
-  private buildTagSynonymMap(tags: string[]): Map<string, string[]> {
-    const synonymGroups = new Map<string, string[]>();
-
-    for (const tag of tags) {
-      const normalized = this.normalizeTag(tag);
-      if (!synonymGroups.has(normalized)) {
-        synonymGroups.set(normalized, []);
-      }
-      synonymGroups.get(normalized)!.push(tag);
-    }
-
-    return synonymGroups;
   }
 
   /**
@@ -416,7 +406,6 @@ export class EmbeddingClassifier {
     this.tagEmbeddings = {};
     this.tagDocCounts = {};
     this.totalDocs = 0;
-    this.embeddingCache.clear();
     this.docFrequency.clear();
     this.trainingBuffer = [];
     this.tagDistinctiveWords = {};
@@ -443,20 +432,35 @@ export class EmbeddingClassifier {
       throw new Error('Invalid classifier data');
     }
 
+    // Validate data structure
+    if (typeof data.totalDocs !== 'number' || data.totalDocs < 0) {
+      throw new Error('Invalid totalDocs in classifier data');
+    }
+
     this.tagEmbeddings = data.tagEmbeddings || {};
     this.tagDocCounts = data.tagDocCounts || {};
-    this.totalDocs = data.totalDocs || 0;
+    this.totalDocs = data.totalDocs;
     this.tagDistinctiveWords = data.tagDistinctiveWords || {};
 
     // Restore docFrequency Map
     this.docFrequency.clear();
     if (data.docFrequency) {
       for (const [word, freq] of Object.entries(data.docFrequency)) {
-        this.docFrequency.set(word, freq);
+        if (typeof freq === 'number' && freq > 0) {
+          this.docFrequency.set(word, freq);
+        }
       }
     }
 
-    this.embeddingCache.clear();
+    // Validate embeddings dimensions
+    for (const [tag, embedding] of Object.entries(this.tagEmbeddings)) {
+      if (!Array.isArray(embedding) || embedding.length !== this.DIMENSIONS) {
+        console.warn(`[EmbeddingClassifier] Invalid embedding for tag "${tag}", removing`);
+        delete this.tagEmbeddings[tag];
+        delete this.tagDocCounts[tag];
+        delete this.tagDistinctiveWords[tag];
+      }
+    }
   }
 
   /**
