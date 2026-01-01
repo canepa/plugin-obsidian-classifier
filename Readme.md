@@ -1,6 +1,6 @@
 # Auto Tagger for Obsidian
 
-![Version](https://img.shields.io/badge/version-2.0.8-blue)
+![Version](https://img.shields.io/badge/version-2.0.9-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
 Automatically suggest and apply tags to your notes using semantic classifiers with advanced filtering. Create specialized collections for different note types, each with its own training scope and tag vocabulary.
