@@ -3,7 +3,7 @@ import type { EmbeddingClassifierData, EmbeddingClassifier } from './embedding-c
 
 export type AutoTaggerPlugin = Plugin & {
   settings: AutoTaggerSettings;
-  classifiers: Map<string, EmbeddingClassifier>;
+  classifiers: Map<string, EmbeddingClassifier | import('./advanced-classifier').AdvancedEmbeddingClassifier>;
   saveSettings(): Promise<void>;
   trainCollection(collectionId: string): Promise<void>;
 };
@@ -11,6 +11,9 @@ export type AutoTaggerPlugin = Plugin & {
 export interface Collection {
   id: string;
   name: string;
+  
+  // Classifier type
+  classifierType: 'basic' | 'advanced';
   
   // Scope definition
   folderMode: 'all' | 'include' | 'exclude';
@@ -47,6 +50,7 @@ export interface AutoTaggerSettings {
 }
 
 export const DEFAULT_COLLECTION: Omit<Collection, 'id' | 'name'> = {
+  classifierType: 'basic',
   folderMode: 'all',
   includeFolders: [],
   excludeFolders: [],
@@ -83,6 +87,7 @@ export function migrateSettings(data: unknown): AutoTaggerSettings {
   const defaultCollection: Collection = {
     id: 'default',
     name: 'Default Collection',
+    classifierType: 'basic',
     folderMode: (oldData.folderMode as 'all' | 'include' | 'exclude') || 'all',
     includeFolders: (oldData.includeFolders as string[]) || [],
     excludeFolders: (oldData.excludeFolders as string[]) || [],
@@ -94,8 +99,6 @@ export function migrateSettings(data: unknown): AutoTaggerSettings {
     enabled: true,
     lastTrained: null
   };
-  
-  console.debug('[Auto Tagger] Migrating settings to collection-based format');
   
   return {
     collections: [defaultCollection],
@@ -131,6 +134,15 @@ export class AutoTaggerSettingTab extends PluginSettingTab {
     const { containerEl } = this;
     containerEl.empty();
     containerEl.addClass('auto-tagger-settings');
+
+    // Version identifier for debugging
+    const versionEl = containerEl.createEl('div', { 
+      cls: 'setting-item-description',
+      text: '🔧 Build: 2.0.8-debug-fix-20260101-19:45'
+    });
+    versionEl.style.color = '#00ff00';
+    versionEl.style.fontWeight = 'bold';
+    versionEl.style.marginBottom = '10px';
 
     new Setting(containerEl)
       .setName('Configuration')
@@ -170,6 +182,10 @@ export class AutoTaggerSettingTab extends PluginSettingTab {
         .setValue(this.plugin.settings.debugToConsole)
         .onChange(async (value) => {
           this.plugin.settings.debugToConsole = value;
+          // Update all loaded classifiers
+          for (const classifier of this.plugin.classifiers.values()) {
+            classifier.setDebugEnabled(value);
+          }
           await this.plugin.saveSettings();
         }));
 
@@ -320,6 +336,27 @@ export class AutoTaggerSettingTab extends PluginSettingTab {
     new Setting(collectionContainer)
       .setName('Folder scope')
       .setHeading();
+
+    // Classifier Type Selection
+    new Setting(collectionContainer)
+      .setName('Classifier type')
+      .setDesc('Choose between basic (faster, simpler) or advanced (enhanced filtering, semantic understanding)')
+      .addDropdown(dropdown => {
+        dropdown
+          .addOption('basic', 'Basic (TF-IDF)')
+          .addOption('advanced', 'Advanced (Enhanced)')
+          .setValue(collection.classifierType || 'basic')
+          .onChange(async (value) => {
+            collection.classifierType = value as 'basic' | 'advanced';
+            // Clear trained data when switching classifier types
+            collection.classifierData = null;
+            collection.lastTrained = null;
+            await this.plugin.saveSettings();
+            new Notice(`Switched to ${value} classifier. Please retrain this collection.`);
+            this.display();
+          });
+        return dropdown;
+      });
 
     new Setting(collectionContainer)
       .setName('Folder mode')
@@ -487,17 +524,75 @@ export class AutoTaggerSettingTab extends PluginSettingTab {
         this.display();
       }));
 
+    actionsSetting.addButton(button => {
+      const isTrained = collection.classifierData !== null;
+      button
+        .setButtonText('Clear training')
+        .setWarning()
+        .setTooltip(isTrained ? 'Delete trained data and start fresh' : 'No training data to clear')
+        .setDisabled(!isTrained)
+        .onClick(async () => {
+          const confirmed = confirm(
+            `Clear all training data for "${collection.name}"?\n\n` +
+            `This will delete the trained classifier. You'll need to retrain.`
+          );
+          
+          if (confirmed) {
+            collection.classifierData = null;
+            collection.lastTrained = null;
+            this.plugin.classifiers.delete(collection.id);
+            await this.plugin.saveSettings();
+            new Notice(`Cleared training data for "${collection.name}"`);
+            this.display();
+          }
+        });
+    });
+
     actionsSetting.addButton(button => button
       .setButtonText('Debug stats')
-      .setTooltip('Show classifier statistics')
+      .setTooltip('Show detailed classifier statistics')
       .onClick(() => {
         const classifier = this.plugin.classifiers?.get(collection.id);
         if (classifier) {
           const stats = classifier.getStats();
-          const msg = `Collection: ${collection.name}\nTags: ${stats.totalTags}\nDocuments: ${stats.totalDocs}`;
-          new Notice(msg, 5000);
+          const detailedStats: {
+            avgDocsPerTag?: number;
+            vocabularySize?: number;
+            topTags?: Array<{ tag: string; count: number }>;
+            tagDistinctiveWordsCount?: number;
+          } = (classifier as EmbeddingClassifier).getDetailedStats?.() || {};
+          
+          let msg = `📊 Collection: ${collection.name}\n`;
+          msg += `━━━━━━━━━━━━━━━━━━━━\n`;
+          msg += `🏷️  Tags: ${stats.totalTags}\n`;
+          msg += `📄 Documents: ${stats.totalDocs}\n`;
+          msg += `🔧 Classifier: ${collection.classifierType}\n`;
+          
+          if (detailedStats.avgDocsPerTag) {
+            msg += `📊 Avg docs/tag: ${detailedStats.avgDocsPerTag.toFixed(1)}\n`;
+          }
+          if (detailedStats.vocabularySize) {
+            msg += `📚 Vocabulary: ${detailedStats.vocabularySize} words\n`;
+          }
+          if (collection.lastTrained) {
+            const date = new Date(collection.lastTrained);
+            msg += `⏰ Trained: ${date.toLocaleString()}\n`;
+          }
+          
+          if (detailedStats.topTags && detailedStats.topTags.length > 0) {
+            msg += `\n🔝 Top 5 tags by docs:\n`;
+            detailedStats.topTags.slice(0, 5).forEach((t: { tag: string; count: number }) => {
+              msg += `   ${t.tag}: ${t.count} docs\n`;
+            });
+          }
+          
+          if (detailedStats.tagDistinctiveWordsCount) {
+            msg += `\n🎯 Avg distinctive words/tag: ${detailedStats.tagDistinctiveWordsCount.toFixed(1)}`;
+          }
+          
+          new Notice(msg, 8000);
         } else {
-          new Notice('Classifier not loaded');
+          new Notice('Classifier not loaded. Train first.');
         }
       }));
   }

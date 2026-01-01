@@ -1,32 +1,36 @@
 import { App, Modal, Notice, Plugin, TFile, parseYaml, stringifyYaml } from 'obsidian';
 import { EmbeddingClassifier } from './embedding-classifier';
+import { AdvancedEmbeddingClassifier } from './advanced-classifier';
 import { AutoTaggerSettings, AutoTaggerSettingTab, DEFAULT_SETTINGS, migrateSettings, Collection } from './settings';
 
 export default class AutoTaggerPlugin extends Plugin {
   settings: AutoTaggerSettings;
-  classifiers: Map<string, EmbeddingClassifier> = new Map();
+  classifiers: Map<string, EmbeddingClassifier | AdvancedEmbeddingClassifier> = new Map();
 
   private debug(...args: unknown[]) {
     if (this.settings?.debugToConsole) {
-      console.debug(...args);
+      console.log(...args);
     }
   }
 
   async onload() {
-    console.debug('[Auto Tagger] Loading plugin...');
-    
     await this.loadSettings();
     
     // Load all collection classifiers
     for (const collection of this.settings.collections) {
       if (collection.classifierData) {
-        const classifier = new EmbeddingClassifier();
+        // Create classifier based on type
+        const classifier = collection.classifierType === 'advanced'
+          ? new AdvancedEmbeddingClassifier()
+          : new EmbeddingClassifier();
+        
         classifier.setDebugEnabled(this.settings.debugToConsole);
         try {
           classifier.import(collection.classifierData);
           this.classifiers.set(collection.id, classifier);
           const stats = classifier.getStats();
-          this.debug(`[Auto Tagger] Loaded classifier for "${collection.name}" with ${stats.totalTags} tags trained on ${stats.totalDocs} documents`);
+          const typeLabel = collection.classifierType === 'advanced' ? 'Advanced' : 'Basic';
+          this.debug(`[Auto Tagger] Loaded ${typeLabel} classifier for "${collection.name}" with ${stats.totalTags} tags trained on ${stats.totalDocs} documents`);
         } catch (e) {
           console.error(`[Auto Tagger] Failed to load classifier for "${collection.name}":`, e);
         }
@@ -99,6 +103,13 @@ export default class AutoTaggerPlugin extends Plugin {
   async loadSettings() {
     const data = await this.loadData();
     this.settings = Object.assign({}, DEFAULT_SETTINGS, data ? migrateSettings(data) : DEFAULT_SETTINGS);
+    
+    // Migrate existing collections to have classifierType field
+    for (const collection of this.settings.collections) {
+      if (!collection.classifierType) {
+        collection.classifierType = 'basic';
+      }
+    }
   }
 
   async saveSettings() {
@@ -218,9 +229,14 @@ export default class AutoTaggerPlugin extends Plugin {
       return;
     }
 
-    const notice = new Notice(`Training classifier for "${collection.name}"...`, 0);
+    const typeLabel = collection.classifierType === 'advanced' ? 'Advanced' : 'Basic';
+    const notice = new Notice(`Training ${typeLabel} classifier for "${collection.name}"...`, 0);
     
-    const classifier = new EmbeddingClassifier();
+    // Create classifier based on type
+    const classifier = collection.classifierType === 'advanced'
+      ? new AdvancedEmbeddingClassifier()
+      : new EmbeddingClassifier();
+    
     classifier.setDebugEnabled(this.settings.debugToConsole);
     const files = this.getFilesInScopeForCollection(collection);
     const taggedFiles: TFile[] = [];
@@ -239,7 +255,7 @@ export default class AutoTaggerPlugin extends Plugin {
     // Finalize training
     classifier.finalizeTraining();
     
-    this.debug(`[Training] Collection "${collection.name}": trained on ${taggedFiles.length} tagged notes`);
+    this.debug(`[Training] Collection "${collection.name}" (${typeLabel}): trained on ${taggedFiles.length} tagged notes`);
     
     // Save classifier data
     collection.classifierData = classifier.export();
@@ -425,22 +441,41 @@ export default class AutoTaggerPlugin extends Plugin {
   async getSuggestions(file: TFile): Promise<Array<{tag: string, probability: number, collectionName: string}>> {
     const applicableCollections = this.getApplicableCollections(file);
     
+    this.debug(`[getSuggestions] File: ${file.basename}`);
+    this.debug(`[getSuggestions] Applicable collections: ${applicableCollections.map(c => c.name).join(', ')}`);
+    
     if (applicableCollections.length === 0) {
+      this.debug('[getSuggestions] No applicable collections');
       return [];
     }
 
     const { frontmatter, content } = await this.parseFile(file);
+    this.debug(`[getSuggestions] Content length: ${content.length} chars`);
+    
     const tagScores = new Map<string, {probability: number, collectionName: string}>();
     
     // Get suggestions from each applicable collection
     for (const collection of applicableCollections) {
       const classifier = this.classifiers.get(collection.id);
+      const stats = classifier?.getStats();
+      
+      this.debug(`[getSuggestions] Collection "${collection.name}":`);
+      this.debug(`  - Type: ${collection.classifierType || 'basic'}`);
+      this.debug(`  - Classifier loaded: ${!!classifier}`);
+      this.debug(`  - Stats: ${stats ? `${stats.totalDocs} docs, ${stats.totalTags} tags` : 'none'}`);
+      this.debug(`  - Threshold: ${collection.threshold}`);
+      this.debug(`  - Max tags: ${collection.maxTags}`);
+      
       if (!classifier || classifier.getStats().totalDocs === 0) {
+        this.debug(`  - Skipping (no classifier or no training data)`);
         continue;
       }
 
       const existingTags = this.getTagsFromFrontmatter(frontmatter, collection);
+      this.debug(`  - Existing tags: ${existingTags.join(', ') || 'none'}`);
+      
       const whitelist = collection.whitelist.length > 0 ? collection.whitelist : undefined;
+      this.debug(`  - Whitelist: ${whitelist ? whitelist.join(', ') : 'none (all tags allowed)'}`);
       
       const suggestions = classifier.classify(
         content,
@@ -449,6 +484,11 @@ export default class AutoTaggerPlugin extends Plugin {
         collection.maxTags,
         existingTags
       );
+      
+      this.debug(`  - Suggestions returned: ${suggestions.length}`);
+      if (suggestions.length > 0) {
+        this.debug(`    ${suggestions.map(s => `${s.tag} (${(s.probability * 100).toFixed(1)}%)`).join(', ')}`);
+      }
       
       // Merge suggestions - keep highest probability for each tag
       for (const sug of suggestions) {
@@ -463,15 +503,25 @@ export default class AutoTaggerPlugin extends Plugin {
     }
     
     // Convert to array and sort by probability
-    return Array.from(tagScores.entries())
+    const results = Array.from(tagScores.entries())
       .map(([tag, data]) => ({ tag, ...data }))
       .sort((a, b) => b.probability - a.probability);
+    
+    this.debug(`[getSuggestions] Final merged results: ${results.length} tags`);
+    if (results.length > 0) {
+      this.debug(`  ${results.map(r => `${r.tag} (${(r.probability * 100).toFixed(1)}%) [${r.collectionName}]`).join(', ')}`);
+    } else {
+      this.debug('  No suggestions found after filtering');
+    }
+    
+    return results;
   }
 
   /**
    * Show tag suggestions modal for current note
    */
   async showTagSuggestions(): Promise<void> {
+    this.debug('[showTagSuggestions] Called');
     const file = this.app.workspace.getActiveFile();
     
     if (!file) {

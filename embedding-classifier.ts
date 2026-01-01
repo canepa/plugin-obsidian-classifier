@@ -21,21 +21,21 @@ export class EmbeddingClassifier {
   private readonly DISTINCTIVE_IDF_THRESHOLD = 2.0;
   private readonly TOP_DISTINCTIVE_WORDS = 20;
   
-  private tagEmbeddings: Record<string, number[]> = {};
+  protected tagEmbeddings: Record<string, number[]> = {};
   private tagDocCounts: Record<string, number> = {};
   private totalDocs: number = 0;
   private docFrequency: Map<string, number> = new Map();
   private trainingBuffer: Array<{ text: string, tags: string[] }> = [];
-  private tagDistinctiveWords: Record<string, string[]> = {};
-  private debugEnabled: boolean = false;
+  protected tagDistinctiveWords: Record<string, string[]> = {};
+  protected debugEnabled: boolean = false;
 
   setDebugEnabled(enabled: boolean) {
     this.debugEnabled = enabled;
   }
 
-  private debug(...args: unknown[]) {
+  protected debug(...args: unknown[]) {
     if (this.debugEnabled) {
-      console.debug(...args);
+      console.log(...args);
     }
   }
 
@@ -43,13 +43,14 @@ export class EmbeddingClassifier {
    * Generate a simple embedding using TF-IDF-like approach
    * This is a lightweight alternative to transformers until we can properly integrate them
    */
-  private generateEmbedding(text: string, normalize: boolean = true): number[] {
+  protected generateEmbedding(text: string, normalize: boolean = true): number[] {
     // Preprocess text
     const processed = this.preprocessText(text);
     const words = this.tokenize(processed);
 
     // Build vocabulary for this document
-    const wordFreq: Record<string, number> = {};
+    // Use Object.create(null) to avoid inheriting properties like 'constructor'
+    const wordFreq: Record<string, number> = Object.create(null);
     for (const word of words) {
       wordFreq[word] = (wordFreq[word] || 0) + 1;
     }
@@ -68,7 +69,7 @@ export class EmbeddingClassifier {
       // BM25-style TF saturation (k1=1.5) - reduces impact of very frequent words in a document
       const k1 = 1.5;
       const tfSaturated = (freq * (k1 + 1)) / (freq + k1);
-      const tfNormalized = tfSaturated / words.length;
+      const tfNormalized = words.length > 0 ? tfSaturated / words.length : 0;
 
       // Stronger IDF: boost rare words more
       let idf = 2.0; // Baseline for words with no frequency data
@@ -77,6 +78,12 @@ export class EmbeddingClassifier {
       }
 
       const weight = tfNormalized * idf;
+
+      // Defensive check: skip if weight is invalid
+      if (!isFinite(weight) || isNaN(weight)) {
+        console.warn(`[EmbeddingClassifier] Skipping word "${word}" with invalid weight: ${weight} (tf=${tfNormalized}, idf=${idf}, freq=${freq})`);
+        continue;
+      }
 
       // Use 3 different hash functions to spread the word across multiple dimensions
       const hash1 = this.hashWord(word);
@@ -91,10 +98,14 @@ export class EmbeddingClassifier {
     // Normalize only if requested (don't normalize during training accumulation)
     if (normalize) {
       const norm = Math.sqrt(embedding.reduce((sum, val) => sum + val * val, 0));
-      if (norm > 0) {
+      if (norm > 0 && isFinite(norm)) {
         for (let i = 0; i < embedding.length; i++) {
           embedding[i] /= norm;
         }
+      } else if (!isFinite(norm)) {
+        // Handle invalid normalization - return zero vector
+        console.error('[EmbeddingClassifier] Invalid norm during normalization:', norm);
+        embedding.fill(0);
       }
     }
 
@@ -104,7 +115,7 @@ export class EmbeddingClassifier {
   /**
    * Simple string hash function
    */
-  private hashWord(word: string): number {
+  protected hashWord(word: string): number {
     let hash = 0;
     for (let i = 0; i < word.length; i++) {
       hash = ((hash << 5) - hash) + word.charCodeAt(i);
@@ -116,7 +127,7 @@ export class EmbeddingClassifier {
   /**
    * Calculate cosine similarity between two vectors
    */
-  private cosineSimilarity(a: number[], b: number[]): number {
+  protected cosineSimilarity(a: number[], b: number[]): number {
     let dotProduct = 0;
     let normA = 0;
     let normB = 0;
@@ -187,14 +198,30 @@ export class EmbeddingClassifier {
           this.tagEmbeddings[tag][i] /= count;
         }
 
+        // Check for NaN/Infinity after averaging
+        const hasInvalid = this.tagEmbeddings[tag].some(v => !isFinite(v));
+        if (hasInvalid) {
+          console.error(`[EmbeddingClassifier] Tag "${tag}" has invalid values after averaging (${count} docs)`);
+          const nanCount = this.tagEmbeddings[tag].filter(v => isNaN(v)).length;
+          const infCount = this.tagEmbeddings[tag].filter(v => !isFinite(v) && !isNaN(v)).length;
+          console.error(`  NaN: ${nanCount}, Infinity: ${infCount}`);
+          console.error(`  This usually means one of the ${count} documents with this tag has corrupted content`);
+          // Reset to zero vector instead of keeping NaN
+          this.tagEmbeddings[tag].fill(0);
+          continue;
+        }
+
         // NOW normalize after averaging
         const norm = Math.sqrt(
           this.tagEmbeddings[tag].reduce((sum, val) => sum + val * val, 0)
         );
-        if (norm > 0) {
+        if (norm > 0 && isFinite(norm)) {
           for (let i = 0; i < this.tagEmbeddings[tag].length; i++) {
             this.tagEmbeddings[tag][i] /= norm;
           }
+        } else if (!isFinite(norm)) {
+          console.error(`[EmbeddingClassifier] Tag "${tag}" has invalid norm:`, norm);
+          this.tagEmbeddings[tag].fill(0);
         }
       }
     }
@@ -344,7 +371,7 @@ export class EmbeddingClassifier {
   /**
    * Preprocess text
    */
-  private preprocessText(text: string): string {
+  protected preprocessText(text: string): string {
     // Remove frontmatter
     text = text.replace(/^---[\s\S]*?---/, '');
 
@@ -392,7 +419,7 @@ export class EmbeddingClassifier {
   /**
    * Tokenize text into words
    */
-  private tokenize(text: string): string[] {
+  protected tokenize(text: string): string[] {
     return text
       .toLowerCase()
       .split(/\s+/)
@@ -470,6 +497,37 @@ export class EmbeddingClassifier {
     return {
       totalDocs: this.totalDocs,
       totalTags: Object.keys(this.tagEmbeddings).length
+    };
+  }
+
+  /**
+   * Get detailed classifier statistics
+   */
+  getDetailedStats(): {
+    avgDocsPerTag: number;
+    vocabularySize: number;
+    topTags: Array<{ tag: string; count: number }>;
+    tagDistinctiveWordsCount: number;
+  } {
+    const tags = Object.keys(this.tagEmbeddings);
+    const totalTagDocs = Object.values(this.tagDocCounts).reduce((sum, count) => sum + count, 0);
+    
+    // Calculate top tags by document count
+    const topTags = tags
+      .map(tag => ({ tag, count: this.tagDocCounts[tag] || 0 }))
+      .sort((a, b) => b.count - a.count);
+    
+    // Calculate average distinctive words per tag
+    const distinctiveWordsCounts = Object.values(this.tagDistinctiveWords).map(words => words.length);
+    const avgDistinctiveWords = distinctiveWordsCounts.length > 0
+      ? distinctiveWordsCounts.reduce((sum, count) => sum + count, 0) / distinctiveWordsCounts.length
+      : 0;
+    
+    return {
+      avgDocsPerTag: tags.length > 0 ? totalTagDocs / tags.length : 0,
+      vocabularySize: this.docFrequency.size,
+      topTags,
+      tagDistinctiveWordsCount: avgDistinctiveWords
     };
   }
 

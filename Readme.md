@@ -3,17 +3,18 @@
 ![Version](https://img.shields.io/badge/version-2.0.8-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
-Automatically suggest and apply tags to your notes using multiple semantic classifiers. Create specialized collections for different note types, each with its own training scope and tag vocabulary.
+Automatically suggest and apply tags to your notes using semantic classifiers with advanced filtering. Create specialized collections for different note types, each with its own training scope and tag vocabulary.
 
 ## ✨ Features
 
 - **🗂️ Collection-Based Organization** - Multiple classifiers, each trained on different note collections
-- **🤖 Semantic Understanding** - Embedding-based classifier using TF-IDF for multi-label classification
-- **🎯 Smart Filtering** - Only suggests tags when notes contain distinctive keywords (40% minimum overlap)
+- **🤖 Dual Classifier Types** - Choose between Basic (fast, simple) or Advanced (enhanced filtering, semantic understanding)
+- **🎯 Smart Filtering** - Advanced classifier uses similarity + distinctive word overlap for higher precision
 - **🔄 Multi-Classifier Aggregation** - Combines suggestions from all applicable collections
-- **🌐 Batch Operations** - Train or debug all collections at once
+- **📊 Detailed Statistics** - View comprehensive classifier stats (vocabulary size, top tags, training date)
 - **⚙️ Flexible Configuration** - Per-collection scope, thresholds, whitelist/blacklist
 - **🚫 Duplicate Prevention** - Never suggests tags already in your note
+- **🐛 Debug Mode** - Optional detailed logging for troubleshooting and optimization
 - **🎨 Clean Interface** - Interactive modal showing suggestions with collection sources
 
 ## 📦 Installation
@@ -112,9 +113,22 @@ When a note matches multiple collections:
 ### Global Settings
 
 - **Auto-tag on save** - Automatically apply tags when saving notes
-- **Debug to console** - Show detailed logs in developer console
+- **Debug to console** - Show detailed logs in developer console (press `F12` or `Ctrl+Shift+I`)
 
 ### Per-Collection Settings
+
+**Classifier Type:**
+- **Basic (TF-IDF)** - Fast, simple TF-IDF embedding classifier
+  - Good for: General use, quick training, smaller collections
+  - Features: Word-level TF-IDF embeddings, cosine similarity, 40% overlap threshold
+  - Weighting: 70% similarity, 30% overlap
+- **Advanced (Enhanced)** - Stricter filtering for higher precision
+  - Good for: Specialized content, avoiding false positives, quality over quantity
+  - Features:
+    - **Dual filtering** - Pass if similarity ≥55% OR (similarity ≥45% AND overlap ≥25%)
+    - **Adaptive weighting** - Dynamically adjusts similarity vs overlap importance
+    - **Semantic prioritization** - Favors topically-relevant tags over generic keyword matches
+    - **Better discrimination** - Enhanced TF-IDF with defensive NaN handling
 
 **Folder Scope:**
 - **All folders** - Process entire vault
@@ -146,21 +160,27 @@ When a note matches multiple collections:
 The plugin uses **embedding-based semantic classification** with TF-IDF vectors:
 
 1. **Collection-Based**: Each collection maintains an independent classifier
-2. **Two-Pass Training**: 
+2. **Dual Classifier Types**:
+   - **Basic**: TF-IDF embeddings with 40% overlap filter, 70/30 similarity/overlap weighting
+   - **Advanced**: Enhanced filtering (55% threshold OR 45%+25% overlap), adaptive weighting, semantic prioritization
+3. **Two-Pass Training**: 
    - Pass 1: Build vocabulary and document frequency statistics
    - Pass 2: Generate 1024-dimensional embeddings for each tag
-3. **TF-IDF Vectors**: Combines term frequency with inverse document frequency
-4. **Cosine Similarity**: Measures semantic similarity between note and tags
-5. **Word Overlap Filter**: Requires 40% of tag's distinctive words in document
-6. **Multi-Classifier Query**: Aggregates suggestions from all applicable collections
+4. **TF-IDF Vectors**: Combines term frequency (with BM25 saturation) and inverse document frequency (boosted formula)
+5. **Cosine Similarity**: Measures semantic similarity between note and tags
+6. **Distinctive Words**: Top 20 high-IDF terms per tag for overlap calculation
+7. **Multi-Classifier Query**: Aggregates suggestions from all applicable collections
+8. **Debug Mode**: Optional detailed logging of classification pipeline for optimization
 
 ### Why This Works
 
 - **Multi-label support** - Handles notes with multiple relevant tags
-- **Semantic understanding** - Captures meaning through word co-occurrence
-- **Discriminative filtering** - Prevents false positives via keyword requirements
+- **Semantic understanding** - Captures meaning through word co-occurrence patterns
+- **Precision control** - Choose between broader coverage (Basic) or higher quality (Advanced)
+- **Discriminative filtering** - Prevents false positives via distinctive word matching
 - **Collection isolation** - Technical notes don't interfere with creative writing
 - **Scalability** - Add collections without retraining everything
+- **Defensive programming** - Object.create(null) prevents prototype pollution, NaN detection prevents corruption
 
 ## 💡 Tips & Best Practices
 
@@ -171,17 +191,35 @@ The plugin uses **embedding-based semantic classification** with TF-IDF vectors:
 - **Retrain regularly** as you add more notes
 - **Specialized collections** produce more accurate suggestions
 
-### Optimization
+### Classifier Selection
 
-- **Adjust thresholds** per collection (conservative vs liberal)
-- **Check console logs** (`Ctrl+Shift+I`) to see similarity scores
-- **Word overlap is critical** - 40%+ needed for reliable suggestions
-- **Use whitelists** to focus on important tags per collection
+- **Basic classifier**: Fast, broader coverage, good for general collections
+  - Use when you want more tag suggestions
+  - 40% overlap + 70/30 weighting
+- **Advanced classifier**: Stricter, higher precision, fewer false positives
+  - Use for specialized collections (technical docs, research papers)
+  - 55% threshold OR (45% + 25% overlap)
+  - Prioritizes semantic relevance over generic keywords
+
+### Debugging & Optimization
+
+- **Enable debug mode** in settings to see classification pipeline
+- **Check console** (`F12` or `Ctrl+Shift+I`) to see:
+  - Document and tag embeddings (non-zero dimensions, magnitude)
+  - Similarity scores and overlap percentages
+  - Distinctive words matching
+  - Filter condition evaluation
+- **View detailed stats** - Click "Debug stats" button to see:
+  - Vocabulary size and average docs per tag
+  - Top tags by document count
+  - Training date and classifier type
+  - Distinctive words per tag average
+- **Adjust thresholds** based on debug output
 
 ### Collection Strategy
 
-- Start with one general collection
-- Add specialized collections as themes emerge
+- Start with one general collection (Basic classifier)
+- Add specialized collections as themes emerge (consider Advanced for these)
 - Overlapping scopes are OK - suggestions merge
 - Use "All Collections" for batch operations
 
@@ -189,21 +227,33 @@ The plugin uses **embedding-based semantic classification** with TF-IDF vectors:
 
 **No suggestions appearing:**
 - Verify note is in scope of an enabled collection
-- Check that collections are trained
+- Check that collections are trained (click "Debug stats" to verify)
 - Look for blacklisted tags
-- Review console logs for word overlap details
+- Enable debug mode and check console logs (`F12`)
 
 **Irrelevant suggestions:**
-- Increase similarity threshold (0.4-0.5)
+- Try **Advanced classifier** for stricter filtering (55% threshold)
+- Increase similarity threshold in collection settings (0.4-0.5)
 - Check which collection suggested it (shown in brackets)
 - Add to blacklist or narrow collection scope
+- Enable debug mode to see similarity scores and matching words
 
-**Collection selector empty:**
-- Ensure at least one collection is enabled
-- Verify collections have been trained
+**Too few suggestions:**
+- Try **Basic classifier** for broader coverage (40% threshold)
+- Lower similarity threshold (0.2-0.3)
+- Check whitelist isn't too restrictive
+- Verify enough training data (50+ tagged notes recommended)
 
-**"All Collections" option missing:**
-- Need at least 2 enabled collections
+**Training issues:**
+- Check console for errors (`F12`)
+- Expected warning: "Skipping word 'constructor'" (safe to ignore)
+- If NaN errors appear, retrain collection (defensive checks will handle it)
+
+**Debug mode:**
+- Enable in Settings → Auto Tagger → Debug to console
+- Shows classification pipeline details in console
+- Logs embedding generation, similarity calculations, filter evaluation
+- Use "Debug stats" button for summary statistics
 
 ## 🛠️ Development
 
