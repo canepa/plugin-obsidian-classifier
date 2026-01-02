@@ -181,7 +181,7 @@ export class AutoTaggerSettingTab extends PluginSettingTab {
     // Version identifier for debugging
     containerEl.createEl('div', { 
       cls: 'auto-tagger-version',
-      text: '🔧 Build: 2.0.9'
+      text: '🔧 Build: 2.0.10'
     });
 
     new Setting(containerEl)
