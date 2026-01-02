@@ -35,7 +35,7 @@ export class EmbeddingClassifier {
 
   protected debug(...args: unknown[]) {
     if (this.debugEnabled) {
-      console.log(...args);
+      console.debug(...args);
     }
   }
 

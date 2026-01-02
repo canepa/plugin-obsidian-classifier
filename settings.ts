@@ -1,5 +1,48 @@
-import { App, Plugin, PluginSettingTab, Setting, Notice } from 'obsidian';
+import { App, Plugin, PluginSettingTab, Setting, Notice, Modal } from 'obsidian';
 import type { EmbeddingClassifierData, EmbeddingClassifier } from './embedding-classifier';
+
+/**
+ * Confirmation modal for destructive actions
+ */
+class ConfirmModal extends Modal {
+  constructor(
+    app: App,
+    private title: string,
+    private message: string,
+    private onConfirm: () => void | Promise<void>
+  ) {
+    super(app);
+  }
+
+  onOpen() {
+    const { contentEl } = this;
+    contentEl.empty();
+    
+    contentEl.createEl('h2', { text: this.title });
+    contentEl.createEl('p', { text: this.message });
+    
+    const buttonContainer = contentEl.createDiv({ cls: 'modal-button-container' });
+    
+    const confirmButton = buttonContainer.createEl('button', { 
+      text: 'Confirm',
+      cls: 'mod-warning'
+    });
+    confirmButton.addEventListener('click', async () => {
+      await this.onConfirm();
+      this.close();
+    });
+    
+    const cancelButton = buttonContainer.createEl('button', { text: 'Cancel' });
+    cancelButton.addEventListener('click', () => {
+      this.close();
+    });
+  }
+
+  onClose() {
+    const { contentEl } = this;
+    contentEl.empty();
+  }
+}
 
 export type AutoTaggerPlugin = Plugin & {
   settings: AutoTaggerSettings;
@@ -136,13 +179,10 @@ export class AutoTaggerSettingTab extends PluginSettingTab {
     containerEl.addClass('auto-tagger-settings');
 
     // Version identifier for debugging
-    const versionEl = containerEl.createEl('div', { 
-      cls: 'setting-item-description',
-      text: '🔧 Build: 2.0.8-debug-fix-20260101-19:45'
+    containerEl.createEl('div', { 
+      cls: 'auto-tagger-version',
+      text: '🔧 Build: 2.0.9'
     });
-    versionEl.style.color = '#00ff00';
-    versionEl.style.fontWeight = 'bold';
-    versionEl.style.marginBottom = '10px';
 
     new Setting(containerEl)
       .setName('Configuration')
@@ -264,25 +304,24 @@ export class AutoTaggerSettingTab extends PluginSettingTab {
       .setWarning()
       .setTooltip('Delete this collection')
       .onClick(async () => {
-        const confirmed = confirm(
-          `Delete collection "${collection.name}"?\n\n` +
-          `This will permanently remove the collection and its trained classifier.\n` +
-          `This action cannot be undone.`
-        );
-        
-        if (confirmed) {
-          this.plugin.settings.collections = this.plugin.settings.collections
-            .filter(c => c.id !== collection.id);
-          
-          if (this.plugin.settings.activeCollectionId === collection.id) {
-            this.plugin.settings.activeCollectionId = this.plugin.settings.collections[0]?.id || null;
-          }
+        const modal = new ConfirmModal(
+          this.app,
+          `Delete collection "${collection.name}"?`,
+          `This will permanently remove the collection and its trained classifier. This action cannot be undone.`,
+          async () => {
+            this.plugin.settings.collections = this.plugin.settings.collections
+              .filter(c => c.id !== collection.id);
+            
+            if (this.plugin.settings.activeCollectionId === collection.id) {
+              this.plugin.settings.activeCollectionId = this.plugin.settings.collections[0]?.id || null;
+            }
           
           this.plugin.classifiers.delete(collection.id);
           await this.plugin.saveSettings();
           new Notice(`Deleted collection "${collection.name}"`);
           this.display();
-        }
+        });
+        modal.open();
       }));
 
     // Collection Name
@@ -298,17 +337,19 @@ export class AutoTaggerSettingTab extends PluginSettingTab {
           });
         
         // Update header and save on blur
-        text.inputEl.addEventListener('blur', async () => {
-          // Ensure name is not empty
-          if (!collection.name.trim()) {
-            collection.name = 'Unnamed Collection';
-            text.setValue(collection.name);
-          }
-          
-          // Update the header title
-          const headerNameEl = headerSetting.nameEl;
-          headerNameEl.textContent = collection.name;
-          await this.plugin.saveSettings();
+        text.inputEl.addEventListener('blur', () => {
+          void (async () => {
+            // Ensure name is not empty
+            if (!collection.name.trim()) {
+              collection.name = 'Unnamed Collection';
+              text.setValue(collection.name);
+            }
+            
+            // Update the header title
+            const headerNameEl = headerSetting.nameEl;
+            headerNameEl.textContent = collection.name;
+            await this.plugin.saveSettings();
+          })();
         });
       });
 
@@ -344,7 +385,7 @@ export class AutoTaggerSettingTab extends PluginSettingTab {
       .addDropdown(dropdown => {
         dropdown
           .addOption('basic', 'Basic (TF-IDF)')
-          .addOption('advanced', 'Advanced (Enhanced)')
+          .addOption('advanced', 'Advanced (enhanced)')
           .setValue(collection.classifierType || 'basic')
           .onChange(async (value) => {
             collection.classifierType = value as 'basic' | 'advanced';
@@ -532,19 +573,20 @@ export class AutoTaggerSettingTab extends PluginSettingTab {
         .setTooltip(isTrained ? 'Delete trained data and start fresh' : 'No training data to clear')
         .setDisabled(!isTrained)
         .onClick(async () => {
-          const confirmed = confirm(
-            `Clear all training data for "${collection.name}"?\n\n` +
-            `This will delete the trained classifier. You'll need to retrain.`
+          const modal = new ConfirmModal(
+            this.app,
+            `Clear all training data for "${collection.name}"?`,
+            `This will delete the trained classifier. You'll need to retrain.`,
+            async () => {
+              collection.classifierData = null;
+              collection.lastTrained = null;
+              this.plugin.classifiers.delete(collection.id);
+              await this.plugin.saveSettings();
+              new Notice(`Cleared training data for "${collection.name}"`);
+              this.display();
+            }
           );
-          
-          if (confirmed) {
-            collection.classifierData = null;
-            collection.lastTrained = null;
-            this.plugin.classifiers.delete(collection.id);
-            await this.plugin.saveSettings();
-            new Notice(`Cleared training data for "${collection.name}"`);
-            this.display();
-          }
+          modal.open();
         });
     });
 

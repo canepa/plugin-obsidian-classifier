@@ -9,7 +9,7 @@ export default class AutoTaggerPlugin extends Plugin {
 
   private debug(...args: unknown[]) {
     if (this.settings?.debugToConsole) {
-      console.log(...args);
+      console.debug(...args);
     }
   }
 

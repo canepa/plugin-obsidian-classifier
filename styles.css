@@ -49,6 +49,14 @@
   color: var(--text-muted);
 }
 
+/* Version identifier styling */
+.auto-tagger-version {
+  color: var(--text-success);
+  font-weight: var(--font-semibold);
+  margin-bottom: 10px;
+  font-size: var(--font-ui-small);
+}
+
 /* Settings UI styles */
 .auto-tagger-intro {
   padding: 10px;

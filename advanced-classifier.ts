@@ -32,7 +32,7 @@ export class AdvancedEmbeddingClassifier extends EmbeddingClassifier {
    */
   private log(...args: unknown[]) {
     if (this.debugEnabled) {
-      console.log(...args);
+      console.debug(...args);
     }
   }
 
@@ -585,7 +585,7 @@ export class AdvancedEmbeddingClassifier extends EmbeddingClassifier {
 
   protected debug(...args: unknown[]): void {
     if (super['debugEnabled']) {
-      console.log('[AdvancedClassifier]', ...args);
+      console.debug('[AdvancedClassifier]', ...args);
     }
   }
 }
