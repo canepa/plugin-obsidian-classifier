@@ -27,9 +27,11 @@ class ConfirmModal extends Modal {
       text: 'Confirm',
       cls: 'mod-warning'
     });
-    confirmButton.addEventListener('click', async () => {
-      await this.onConfirm();
-      this.close();
+    confirmButton.addEventListener('click', () => {
+      void (async () => {
+        await this.onConfirm();
+        this.close();
+      })();
     });
     
     const cancelButton = buttonContainer.createEl('button', { text: 'Cancel' });
@@ -303,7 +305,7 @@ export class AutoTaggerSettingTab extends PluginSettingTab {
       .setButtonText('Delete')
       .setWarning()
       .setTooltip('Delete this collection')
-      .onClick(async () => {
+      .onClick(() => {
         const modal = new ConfirmModal(
           this.app,
           `Delete collection "${collection.name}"?`,
@@ -387,14 +389,16 @@ export class AutoTaggerSettingTab extends PluginSettingTab {
           .addOption('basic', 'Basic (TF-IDF)')
           .addOption('advanced', 'Advanced (enhanced)')
           .setValue(collection.classifierType || 'basic')
-          .onChange(async (value) => {
-            collection.classifierType = value as 'basic' | 'advanced';
-            // Clear trained data when switching classifier types
+          .onChange((value) => {
+            void (async () => {
+              collection.classifierType = value as 'basic' | 'advanced';
+              // Clear trained data when switching classifier types
             collection.classifierData = null;
             collection.lastTrained = null;
             await this.plugin.saveSettings();
             new Notice(`Switched to ${value} classifier. Please retrain this collection.`);
             this.display();
+            })();
           });
         return dropdown;
       });
@@ -572,7 +576,7 @@ export class AutoTaggerSettingTab extends PluginSettingTab {
         .setWarning()
         .setTooltip(isTrained ? 'Delete trained data and start fresh' : 'No training data to clear')
         .setDisabled(!isTrained)
-        .onClick(async () => {
+        .onClick(() => {
           const modal = new ConfirmModal(
             this.app,
             `Clear all training data for "${collection.name}"?`,
