@@ -183,7 +183,7 @@ export class AutoTaggerSettingTab extends PluginSettingTab {
     // Version identifier for debugging
     containerEl.createEl('div', { 
       cls: 'auto-tagger-version',
-      text: '🔧 Build: 2.0.10'
+      text: 'Build: 2.0.10'
     });
 
     new Setting(containerEl)
@@ -386,7 +386,7 @@ export class AutoTaggerSettingTab extends PluginSettingTab {
       .setDesc('Choose between basic (faster, simpler) or advanced (enhanced filtering, semantic understanding)')
       .addDropdown(dropdown => {
         dropdown
-          .addOption('basic', 'Basic (TF-IDF)')
+          .addOption('basic', 'Basic (Frequency & inverse document frequency)')
           .addOption('advanced', 'Advanced (enhanced)')
           .setValue(collection.classifierType || 'basic')
           .onChange((value) => {
