@@ -62,10 +62,10 @@ Automatically suggest and apply tags to your notes using semantic classifiers wi
 ### Collection Setup
 
 Collections let you organize notes with specialized classifiers. Each collection has:
-- **Independent scope** - Which folders to process
-- **Tag filters** - Whitelist/blacklist for this collection
-- **Training data** - Learned from notes within scope
-- **Parameters** - Threshold and max tags
+- **Independent scope** - Which folders to process  
+- **Tag filters** - Whitelist/blacklist for this collection  
+- **Training data** - Learned from notes within scope  
+- **Parameters** - Threshold and max tags  
 
 **Example Configuration:**
 
@@ -94,7 +94,7 @@ Collection: "General Notes"
 Access via Command Palette (`Ctrl/Cmd + P`):
 
 | Command | Description |
-|---------|-------------|
+| ------- | ----------- |
 | **Train classifier** | Select collection or "All Collections" to train |
 | **Debug classifier stats** | View training statistics |
 | **Suggest tags for current note** | Get suggestions from applicable collections |
@@ -105,6 +105,7 @@ Access via Command Palette (`Ctrl/Cmd + P`):
 ### Multi-Collection Workflow
 
 When a note matches multiple collections:
+
 1. Blacklisted tags are automatically removed from the note (if present)
 2. All applicable classifiers are queried
 3. Suggestions are merged (highest probability per tag)
@@ -115,6 +116,7 @@ When a note matches multiple collections:
 ### Batch Operation Summaries
 
 When running batch operations (tag all notes, tag folder), you'll get a detailed summary modal:
+
 - ✅ **Files modified**: Total count of files with changes
 - ➕ **Tags added**: Total number of tags added across all files
 - 🗑️ **Tags removed**: Total number of blacklisted tags removed
@@ -132,7 +134,7 @@ The details view shows exactly which tags were added or removed for each file, m
 ### Per-Collection Settings
 
 **Classifier Type:**
-- **Basic (TF-IDF)** - Fast, simple TF-IDF embedding classifier
+- **Basic (TF-IDF)** - Fast, simple TF-IDF embedding classifier  
   - Good for: General use, quick training, smaller collections
   - Features: Word-level TF-IDF embeddings, cosine similarity, 40% overlap threshold
   - Weighting: 70% similarity, 30% overlap
@@ -177,7 +179,7 @@ The plugin uses **embedding-based semantic classification** with TF-IDF vectors:
 2. **Dual Classifier Types**:
    - **Basic**: TF-IDF embeddings with 40% overlap filter, 70/30 similarity/overlap weighting
    - **Advanced**: Enhanced filtering (55% threshold OR 45%+25% overlap), adaptive weighting, semantic prioritization
-3. **Two-Pass Training**: 
+3. **Two-Pass Training**:
    - Pass 1: Build vocabulary and document frequency statistics
    - Pass 2: Generate 1024-dimensional embeddings for each tag
 4. **TF-IDF Vectors**: Combines term frequency (with BM25 saturation) and inverse document frequency (boosted formula)
