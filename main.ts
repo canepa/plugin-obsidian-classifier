@@ -448,6 +448,12 @@ export default class AutoTaggerPlugin extends Plugin {
       this.debug('[getSuggestions] No applicable collections');
       return [];
     }
+    
+    // Auto-remove blacklisted tags if present
+    const removedTags = await this.removeBlacklistedTags(file);
+    if (removedTags.length > 0) {
+      new Notice(`Removed ${removedTags.length} blacklisted tag(s): ${removedTags.join(', ')}`);
+    }
 
     const { frontmatter, content } = await this.parseFile(file);
     this.debug(`[getSuggestions] Content length: ${content.length} chars`);
@@ -557,24 +563,27 @@ export default class AutoTaggerPlugin extends Plugin {
 
   /**
    * Apply tags to a file (collection-aware)
+   * Returns { added: string[], removed: string[] }
    */
-  async applyTags(file: TFile, newTags: string[], mode: 'integrate' | 'overwrite' = 'integrate'): Promise<void> {
+  async applyTags(file: TFile, newTags: string[], mode: 'integrate' | 'overwrite' = 'integrate'): Promise<{ added: string[], removed: string[] }> {
     const { frontmatter, content } = await this.parseFile(file);
     const applicableCollections = this.getApplicableCollections(file);
     
+    // Get existing tags
+    let existingTags: string[] = [];
+    if (Array.isArray(frontmatter.tags)) {
+      existingTags = frontmatter.tags.map((t: unknown) => String(t).toLowerCase());
+    } else if (typeof frontmatter.tags === 'string') {
+      existingTags = [frontmatter.tags.toLowerCase()];
+    }
+    
     let finalTags: string[];
+    let removed: string[] = [];
     
     if (mode === 'overwrite') {
       finalTags = [...new Set(newTags)];
+      removed = existingTags.filter(t => !finalTags.includes(t));
     } else {
-      // Get existing tags and filter out blacklisted ones from any applicable collection
-      let existingTags: string[] = [];
-      if (Array.isArray(frontmatter.tags)) {
-        existingTags = frontmatter.tags.map((t: unknown) => String(t).toLowerCase());
-      } else if (typeof frontmatter.tags === 'string') {
-        existingTags = [frontmatter.tags.toLowerCase()];
-      }
-      
       // Collect all blacklisted tags from applicable collections
       const allBlacklist = new Set<string>();
       for (const collection of applicableCollections) {
@@ -583,10 +592,14 @@ export default class AutoTaggerPlugin extends Plugin {
       
       // Filter out blacklisted tags
       const filteredExisting = existingTags.filter(tag => !allBlacklist.has(tag));
+      removed = existingTags.filter(tag => allBlacklist.has(tag));
       
       // Merge and deduplicate
       finalTags = [...new Set([...filteredExisting, ...newTags])];
     }
+    
+    // Calculate added tags
+    const added = finalTags.filter(t => !existingTags.includes(t));
     
     frontmatter.tags = finalTags;
     
@@ -595,6 +608,60 @@ export default class AutoTaggerPlugin extends Plugin {
     const newContent = `---\n${newFrontmatter}\n---\n${content}`;
     
     await this.app.vault.modify(file, newContent);
+    
+    return { added, removed };
+  }
+
+  /**
+   * Remove blacklisted tags from a file if present
+   * Returns array of removed tags
+   */
+  async removeBlacklistedTags(file: TFile): Promise<string[]> {
+    const applicableCollections = this.getApplicableCollections(file);
+    if (applicableCollections.length === 0) {
+      return [];
+    }
+    
+    const { frontmatter, content } = await this.parseFile(file);
+    
+    // Get all existing tags
+    let existingTags: string[] = [];
+    if (Array.isArray(frontmatter.tags)) {
+      existingTags = frontmatter.tags.map((t: unknown) => String(t).toLowerCase());
+    } else if (typeof frontmatter.tags === 'string') {
+      existingTags = [frontmatter.tags.toLowerCase()];
+    }
+    
+    if (existingTags.length === 0) {
+      return [];
+    }
+    
+    // Collect all blacklisted tags from applicable collections
+    const allBlacklist = new Set<string>();
+    for (const collection of applicableCollections) {
+      collection.blacklist.forEach(tag => allBlacklist.add(tag));
+    }
+    
+    // Find tags to remove
+    const tagsToRemove = existingTags.filter(tag => allBlacklist.has(tag));
+    
+    if (tagsToRemove.length === 0) {
+      return [];
+    }
+    
+    // Remove blacklisted tags
+    const filteredTags = existingTags.filter(tag => !allBlacklist.has(tag));
+    frontmatter.tags = filteredTags;
+    
+    // Rebuild file content
+    const newFrontmatter = stringifyYaml(frontmatter).trim();
+    const newContent = `---\n${newFrontmatter}\n---\n${content}`;
+    
+    await this.app.vault.modify(file, newContent);
+    
+    this.debug(`[removeBlacklistedTags] Removed ${tagsToRemove.length} tag(s) from "${file.basename}": ${tagsToRemove.join(', ')}`);
+    
+    return tagsToRemove;
   }
 
   /**
@@ -665,6 +732,9 @@ export default class AutoTaggerPlugin extends Plugin {
     
     let tagged = 0;
     let failed = 0;
+    let totalAdded = 0;
+    let totalRemoved = 0;
+    const details: Array<{ file: string, added: string[], removed: string[] }> = [];
     
     for (const file of files) {
       try {
@@ -672,8 +742,18 @@ export default class AutoTaggerPlugin extends Plugin {
         
         if (suggestions.length > 0) {
           const tags = suggestions.map(s => s.tag);
-          await this.applyTags(file, tags, mode);
-          tagged++;
+          const result = await this.applyTags(file, tags, mode);
+          
+          if (result.added.length > 0 || result.removed.length > 0) {
+            tagged++;
+            totalAdded += result.added.length;
+            totalRemoved += result.removed.length;
+            details.push({ 
+              file: file.basename, 
+              added: result.added, 
+              removed: result.removed 
+            });
+          }
         }
       } catch (e) {
         console.error(`Failed to tag file ${file.path}:`, e);
@@ -682,9 +762,21 @@ export default class AutoTaggerPlugin extends Plugin {
     }
     
     notice.hide();
-    const actionText = mode === 'overwrite' ? 'overwritten' : 'updated (blacklisted tags removed)';
-    const failedText = failed > 0 ? ` (${failed} failed)` : '';
-    new Notice(`${tagged} files ${actionText}${failedText}`);
+    
+    if (tagged > 0 || totalRemoved > 0) {
+      new BatchSummaryModal(
+        this.app,
+        'Batch tag all notes',
+        tagged,
+        totalAdded,
+        totalRemoved,
+        failed,
+        details
+      ).open();
+    } else {
+      const failedText = failed > 0 ? ` (${failed} failed)` : '';
+      new Notice(`No changes made${failedText}`);
+    }
   }
 
   /**
@@ -717,6 +809,9 @@ export default class AutoTaggerPlugin extends Plugin {
     
     let tagged = 0;
     let failed = 0;
+    let totalAdded = 0;
+    let totalRemoved = 0;
+    const details: Array<{ file: string, added: string[], removed: string[] }> = [];
     
     for (const f of files) {
       try {
@@ -724,8 +819,18 @@ export default class AutoTaggerPlugin extends Plugin {
         
         if (suggestions.length > 0) {
           const tags = suggestions.map(s => s.tag);
-          await this.applyTags(f, tags, mode);
-          tagged++;
+          const result = await this.applyTags(f, tags, mode);
+          
+          if (result.added.length > 0 || result.removed.length > 0) {
+            tagged++;
+            totalAdded += result.added.length;
+            totalRemoved += result.removed.length;
+            details.push({ 
+              file: f.basename, 
+              added: result.added, 
+              removed: result.removed 
+            });
+          }
         }
       } catch (e) {
         console.error(`Failed to tag file ${f.path}:`, e);
@@ -734,9 +839,21 @@ export default class AutoTaggerPlugin extends Plugin {
     }
     
     notice.hide();
-    const actionText = mode === 'overwrite' ? 'overwritten' : 'updated (blacklisted tags removed)';
-    const failedText = failed > 0 ? ` (${failed} failed)` : '';
-    new Notice(`${tagged} files ${actionText} in ${folder.name}${failedText}`);
+    
+    if (tagged > 0 || totalRemoved > 0) {
+      new BatchSummaryModal(
+        this.app,
+        `Batch tag folder: ${folder.name}`,
+        tagged,
+        totalAdded,
+        totalRemoved,
+        failed,
+        details
+      ).open();
+    } else {
+      const failedText = failed > 0 ? ` (${failed} failed)` : '';
+      new Notice(`No changes made in ${folder.name}${failedText}`);
+    }
   }
 
   onunload() {
@@ -748,6 +865,79 @@ export default class AutoTaggerPlugin extends Plugin {
       }
     }
     void this.saveSettings();
+  }
+}
+
+/**
+ * Modal to display batch operation summary
+ */
+class BatchSummaryModal extends Modal {
+  constructor(
+    app: App,
+    private title: string,
+    private filesModified: number,
+    private tagsAdded: number,
+    private tagsRemoved: number,
+    private failed: number,
+    private details: Array<{ file: string, added: string[], removed: string[] }>
+  ) {
+    super(app);
+  }
+
+  onOpen() {
+    const { contentEl } = this;
+    contentEl.empty();
+    contentEl.addClass('auto-tagger-batch-summary');
+
+    contentEl.createEl('h2', { text: this.title });
+
+    // Summary
+    const summary = contentEl.createEl('div', { cls: 'batch-summary' });
+    summary.createEl('p', { text: `✅ Files modified: ${this.filesModified}` });
+    summary.createEl('p', { text: `➕ Tags added: ${this.tagsAdded}` });
+    
+    if (this.tagsRemoved > 0) {
+      summary.createEl('p', { text: `🗑️ Tags removed (blacklisted): ${this.tagsRemoved}` });
+    }
+    
+    if (this.failed > 0) {
+      summary.createEl('p', { text: `❌ Failed: ${this.failed}`, cls: 'batch-failed' });
+    }
+
+    // Details section (collapsible)
+    if (this.details.length > 0) {
+      const detailsSection = contentEl.createEl('details');
+      detailsSection.createEl('summary', { text: `📋 View details (${this.details.length} files)` });
+      
+      const detailsList = detailsSection.createEl('div', { cls: 'batch-details-list' });
+      
+      for (const detail of this.details) {
+        const fileEntry = detailsList.createEl('div', { cls: 'batch-file-entry' });
+        fileEntry.createEl('div', { text: detail.file, cls: 'batch-file-name' });
+        
+        if (detail.added.length > 0) {
+          const addedDiv = fileEntry.createEl('div', { cls: 'batch-tags-added' });
+          addedDiv.createEl('span', { text: '  ➕ ' });
+          addedDiv.createEl('span', { text: detail.added.join(', ') });
+        }
+        
+        if (detail.removed.length > 0) {
+          const removedDiv = fileEntry.createEl('div', { cls: 'batch-tags-removed' });
+          removedDiv.createEl('span', { text: '  🗑️ ' });
+          removedDiv.createEl('span', { text: detail.removed.join(', ') });
+        }
+      }
+    }
+
+    // Close button
+    const buttonDiv = contentEl.createEl('div', { cls: 'modal-button-container' });
+    const closeButton = buttonDiv.createEl('button', { text: 'Close', cls: 'mod-cta' });
+    closeButton.addEventListener('click', () => this.close());
+  }
+
+  onClose() {
+    const { contentEl } = this;
+    contentEl.empty();
   }
 }
 

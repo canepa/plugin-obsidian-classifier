@@ -386,7 +386,7 @@ export class AutoTaggerSettingTab extends PluginSettingTab {
       .setDesc('Choose between basic (faster, simpler) or advanced (enhanced filtering, semantic understanding)')
       .addDropdown(dropdown => {
         dropdown
-          .addOption('basic', 'Basic (Frequency & inverse document frequency)')
+          .addOption('basic', 'Basic (frequency & inverse document frequency)')
           .addOption('advanced', 'Advanced (enhanced)')
           .setValue(collection.classifierType || 'basic')
           .onChange((value) => {
@@ -456,7 +456,7 @@ export class AutoTaggerSettingTab extends PluginSettingTab {
 
     new Setting(collectionContainer)
       .setName('Tag whitelist')
-      .setDesc('Only suggest these tags (comma-separated), leave empty for all learned tags')
+      .setDesc('Restrict suggestions to only these tags (comma-separated). Leave empty to allow all learned tags')
       .addTextArea(text => text
         .setPlaceholder('Project, important, review')
         .setValue(collection.whitelist.join(', '))
@@ -470,7 +470,7 @@ export class AutoTaggerSettingTab extends PluginSettingTab {
 
     new Setting(collectionContainer)
       .setName('Tag blacklist')
-      .setDesc('Never suggest or train on these tags (comma-separated)')
+      .setDesc('Exclude from training and remove from notes if present (comma-separated)')
       .addTextArea(text => text
         .setPlaceholder('Todo, draft, private')
         .setValue(collection.blacklist.join(', '))

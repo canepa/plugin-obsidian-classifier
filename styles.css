@@ -98,6 +98,74 @@
   font-size: 0.9em;
 }
 
+/* Batch summary modal styles */
+.auto-tagger-batch-summary .batch-summary {
+  margin: 1em 0;
+  padding: 1em;
+  background-color: var(--background-secondary);
+  border-radius: 6px;
+}
+
+.auto-tagger-batch-summary .batch-summary p {
+  margin: 0.5em 0;
+  font-size: var(--font-ui-medium);
+}
+
+.auto-tagger-batch-summary .batch-failed {
+  color: var(--text-error);
+}
+
+.auto-tagger-batch-summary details {
+  margin-top: 1em;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  padding: 0.5em;
+}
+
+.auto-tagger-batch-summary summary {
+  cursor: pointer;
+  font-weight: var(--font-semibold);
+  padding: 0.5em;
+  user-select: none;
+}
+
+.auto-tagger-batch-summary summary:hover {
+  color: var(--text-accent);
+}
+
+.auto-tagger-batch-summary .batch-details-list {
+  max-height: 400px;
+  overflow-y: auto;
+  margin-top: 0.5em;
+}
+
+.auto-tagger-batch-summary .batch-file-entry {
+  padding: 0.75em;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.auto-tagger-batch-summary .batch-file-entry:last-child {
+  border-bottom: none;
+}
+
+.auto-tagger-batch-summary .batch-file-name {
+  font-weight: var(--font-semibold);
+  margin-bottom: 0.25em;
+  color: var(--text-normal);
+}
+
+.auto-tagger-batch-summary .batch-tags-added {
+  color: var(--text-success);
+  font-size: var(--font-ui-small);
+  padding-left: 1em;
+}
+
+.auto-tagger-batch-summary .batch-tags-removed {
+  color: var(--text-error);
+  font-size: var(--font-ui-small);
+  padding-left: 1em;
+}
+
 .auto-tagger-tag-item.excluded label {
   text-decoration: line-through;
   opacity: 0.5;

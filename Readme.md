@@ -14,7 +14,9 @@ Automatically suggest and apply tags to your notes using semantic classifiers wi
 - **📊 Detailed Statistics** - View comprehensive classifier stats (vocabulary size, top tags, training date)
 - **⚙️ Flexible Configuration** - Per-collection scope, thresholds, whitelist/blacklist
 - **🚫 Duplicate Prevention** - Never suggests tags already in your note
-- **🐛 Debug Mode** - Optional detailed logging for troubleshooting and optimization
+- **🧹 Auto-Cleanup** - Blacklisted tags are automatically removed from notes when processed
+- **� Batch Summaries** - Detailed reports showing added/removed tags for each file
+- **�🐛 Debug Mode** - Optional detailed logging for troubleshooting and optimization
 - **🎨 Clean Interface** - Interactive modal showing suggestions with collection sources
 
 ## 📦 Installation
@@ -97,16 +99,28 @@ Access via Command Palette (`Ctrl/Cmd + P`):
 | **Debug classifier stats** | View training statistics |
 | **Suggest tags for current note** | Get suggestions from applicable collections |
 | **Auto-tag current note** | Automatically apply suggestions |
-| **Batch tag all notes** | Tag all notes based on collection scopes |
-| **Batch tag folder** | Tag notes in current folder |
+| **Batch tag all notes** | Tag all notes with detailed summary of changes |
+| **Batch tag folder** | Tag folder notes with detailed summary of changes |
 
 ### Multi-Collection Workflow
 
 When a note matches multiple collections:
-1. All applicable classifiers are queried
-2. Suggestions are merged (highest probability per tag)
-3. UI shows source: `machine-learning (85%) [Technical Docs]`
-4. Blacklisted tags from any collection are removed
+1. Blacklisted tags are automatically removed from the note (if present)
+2. All applicable classifiers are queried
+3. Suggestions are merged (highest probability per tag)
+4. UI shows source: `machine-learning (85%) [Technical Docs]`
+
+**Note:** Blacklist removal happens automatically whenever the plugin processes a note (suggestions, auto-tag, batch operations). You'll see a notification showing which tags were removed.
+
+### Batch Operation Summaries
+
+When running batch operations (tag all notes, tag folder), you'll get a detailed summary modal:
+- ✅ **Files modified**: Total count of files with changes
+- ➕ **Tags added**: Total number of tags added across all files
+- 🗑️ **Tags removed**: Total number of blacklisted tags removed
+- 📋 **View details**: Expandable list showing file-by-file breakdown of changes
+
+The details view shows exactly which tags were added or removed for each file, making it easy to verify batch operations.
 
 ## ⚙️ Configuration
 
@@ -136,8 +150,8 @@ When a note matches multiple collections:
 - **Exclude specific** - Process all except listed folders
 
 **Tag Filtering:**
-- **Whitelist** - Only suggest these tags (empty = suggest all)
-- **Blacklist** - Never train on or suggest these tags
+- **Whitelist** - Restrict suggestions to only these tags (empty = allow all learned tags)
+- **Blacklist** - Exclude from training, never suggest, and **automatically remove from notes** if present
 
 **Classification Parameters:**
 - **Similarity threshold** (0.1-0.7)
