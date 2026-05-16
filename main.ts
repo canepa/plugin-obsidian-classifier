@@ -1,7 +1,16 @@
-import { App, Modal, Notice, Plugin, TFile, parseYaml, stringifyYaml } from 'obsidian';
+import { App, Modal, Notice, Plugin, TFile, parseYaml, requestUrl, stringifyYaml } from 'obsidian';
 import { EmbeddingClassifier } from './embedding-classifier';
 import { AdvancedEmbeddingClassifier } from './advanced-classifier';
-import { AutoTaggerSettings, AutoTaggerSettingTab, DEFAULT_SETTINGS, migrateSettings, Collection } from './settings';
+import { AutoTaggerSettings, AutoTaggerSettingTab, DEFAULT_SETTINGS, migrateSettings, Collection, TagDictionary } from './settings';
+
+/** Internal normalised representation of a loaded dictionary. */
+interface LoadedDictionary {
+  tags: string[];
+  stopwords: string[];
+  blacklist: string[];
+}
+
+const EMPTY_DICTIONARY: LoadedDictionary = { tags: [], stopwords: [], blacklist: [] };
 
 export default class AutoTaggerPlugin extends Plugin {
   settings: AutoTaggerSettings;
@@ -9,7 +18,7 @@ export default class AutoTaggerPlugin extends Plugin {
 
   private debug(...args: unknown[]) {
     if (this.settings?.debugToConsole) {
-      console.debug(...args);
+      console.log(...args);
     }
   }
 
@@ -104,11 +113,13 @@ export default class AutoTaggerPlugin extends Plugin {
     const data = await this.loadData();
     this.settings = Object.assign({}, DEFAULT_SETTINGS, data ? migrateSettings(data) : DEFAULT_SETTINGS);
     
-    // Migrate existing collections to have classifierType field
+    // Migrate existing collections to have fields added in later versions
     for (const collection of this.settings.collections) {
-      if (!collection.classifierType) {
-        collection.classifierType = 'basic';
-      }
+      if (!collection.classifierType)               collection.classifierType    = 'basic';
+      if (collection.tagDictionaryPath === undefined)  collection.tagDictionaryPath  = '';
+      if (collection.dictionaryMode    === undefined)  collection.dictionaryMode    = 'learning';
+      if (collection.additionalTags    === undefined)  collection.additionalTags    = [];
+      if (collection.additionalStopwords === undefined) collection.additionalStopwords = [];
     }
   }
 
@@ -204,9 +215,9 @@ export default class AutoTaggerPlugin extends Plugin {
   }
 
   /**
-   * Get tags from frontmatter, filtering blacklist for a specific collection
+   * Get tags from frontmatter (without filtering for training purposes)
    */
-  getTagsFromFrontmatter(frontmatter: Record<string, unknown>, collection: Collection): string[] {
+  getTagsFromFrontmatter(frontmatter: Record<string, unknown>): string[] {
     let tags: string[] = [];
     
     if (Array.isArray(frontmatter.tags)) {
@@ -215,8 +226,253 @@ export default class AutoTaggerPlugin extends Plugin {
       tags = [frontmatter.tags.toLowerCase()];
     }
     
-    // Filter out blacklisted tags
-    return tags.filter(tag => !collection.blacklist.includes(tag));
+    return tags;
+  }
+
+  /**
+   * Parse a JSON dictionary string into a LoadedDictionary.
+   * Returns EMPTY_DICTIONARY on invalid JSON or missing `tags` field.
+   */
+  private parseDictionaryJson(raw: string, source: string): LoadedDictionary {
+    try {
+      const parsed = JSON.parse(raw) as TagDictionary;
+      if (!Array.isArray(parsed.tags)) {
+        console.error(`[loadTagDictionary] JSON at "${source}" is missing required "tags" array`);
+        return EMPTY_DICTIONARY;
+      }
+      const normalise = (arr?: string[]): string[] =>
+        (arr ?? []).map(s => s.trim().toLowerCase()).filter(s => s.length > 0);
+
+      // Expand aliases: add both the alias and the canonical tag into `tags`
+      const aliasTags: string[] = [];
+      if (parsed.aliases) {
+        for (const [alias, canonical] of Object.entries(parsed.aliases)) {
+          aliasTags.push(alias.trim().toLowerCase());
+          aliasTags.push(canonical.trim().toLowerCase());
+        }
+      }
+
+      const tags = [...new Set([...normalise(parsed.tags), ...aliasTags])];
+      return {
+        tags,
+        stopwords: normalise(parsed.stopwords),
+        blacklist: normalise(parsed.blacklist),
+      };
+    } catch (err) {
+      console.error(`[loadTagDictionary] Failed to parse JSON from "${source}":`, err);
+      return EMPTY_DICTIONARY;
+    }
+  }
+
+  /**
+   * Load a tag dictionary from:
+   *  - a remote URL  (starts with http:// or https://)
+   *  - a local vault .json file  (ends with .json)
+   *  - a local vault text file   (legacy: one tag per line, # comments ignored)
+   */
+  private async loadTagDictionary(source: string): Promise<LoadedDictionary> {
+    if (!source) return EMPTY_DICTIONARY;
+
+    // ── Remote URL ──────────────────────────────────────────────────────────
+    if (source.startsWith('http://') || source.startsWith('https://')) {
+      try {
+        const response = await requestUrl({ url: source, method: 'GET' });
+        if (response.status < 200 || response.status >= 300) {
+          console.error(`[loadTagDictionary] HTTP ${response.status} fetching "${source}"`);
+          return EMPTY_DICTIONARY;
+        }
+        const loaded = this.parseDictionaryJson(response.text, source);
+        this.debug(`[loadTagDictionary] Remote: loaded ${loaded.tags.length} tags, ${loaded.stopwords.length} stopwords, ${loaded.blacklist.length} blacklisted from ${source}`);
+        return loaded;
+      } catch (err) {
+        console.error(`[loadTagDictionary] Network error fetching "${source}":`, err);
+        return EMPTY_DICTIONARY;
+      }
+    }
+
+    // ── Absolute filesystem path (desktop only) ──────────────────────────────
+    const isAbsolute = /^[A-Za-z]:[\\\/]/.test(source) || source.startsWith('/');
+    if (isAbsolute) {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const fs = (window as any).require('fs') as typeof import('fs');
+        const content = fs.readFileSync(source, 'utf8');
+        if (source.toLowerCase().endsWith('.json')) {
+          const loaded = this.parseDictionaryJson(content, source);
+          this.debug(`[loadTagDictionary] FS JSON: loaded ${loaded.tags.length} tags from ${source}`);
+          return loaded;
+        }
+        const tags = content
+          .split('\n')
+          .map((line: string) => line.trim().toLowerCase())
+          .filter((line: string) => line.length > 0 && !line.startsWith('#'))
+          .filter((tag: string, i: number, self: string[]) => self.indexOf(tag) === i);
+        this.debug(`[loadTagDictionary] FS text: loaded ${tags.length} tags from ${source}`);
+        return { tags, stopwords: [], blacklist: [] };
+      } catch (err) {
+        console.error(`[loadTagDictionary] FS error reading "${source}":`, err);
+        return EMPTY_DICTIONARY;
+      }
+    }
+
+    // ── Local vault file ─────────────────────────────────────────────────────
+    try {
+      const file = this.app.vault.getAbstractFileByPath(source);
+      if (!file || !(file instanceof TFile)) {
+        this.debug(`[loadTagDictionary] File not found: ${source}`);
+        return EMPTY_DICTIONARY;
+      }
+
+      const content = await this.app.vault.read(file);
+
+      // JSON dictionary (new format)
+      if (source.toLowerCase().endsWith('.json')) {
+        const loaded = this.parseDictionaryJson(content, source);
+        this.debug(`[loadTagDictionary] JSON: loaded ${loaded.tags.length} tags, ${loaded.stopwords.length} stopwords, ${loaded.blacklist.length} blacklisted from ${source}`);
+        return loaded;
+      }
+
+      // Legacy text format (one tag per line)
+      const tags = content
+        .split('\n')
+        .map(line => line.trim().toLowerCase())
+        .filter(line => line.length > 0 && !line.startsWith('#'))
+        .filter((tag, index, self) => self.indexOf(tag) === index);
+      this.debug(`[loadTagDictionary] Legacy text: loaded ${tags.length} tags from ${source}`);
+      return { tags, stopwords: [], blacklist: [] };
+
+    } catch (error) {
+      console.error(`[loadTagDictionary] Error loading dictionary from "${source}":`, error);
+      return EMPTY_DICTIONARY;
+    }
+  }
+
+  /**
+   * Match content to predefined tags using TF-IDF similarity
+   */
+  private matchContentToTags(text: string, title: string, availableTags: string[], maxTags: number = 5, extraStopwords: string[] = []): string[] {
+    const combinedText = `${title} ${title} ${title} ${text}`.toLowerCase(); // Weight title 3x
+    const stopSet = new Set(extraStopwords.map(s => s.toLowerCase()));
+    const words = combinedText.replace(/[^\w\s-]/g, ' ').split(/\s+/).filter(w => w.length > 2 && !stopSet.has(w));
+    
+    // Score each tag based on how well it matches the content
+    const tagScores: Record<string, number> = {};
+    
+    for (const tag of availableTags) {
+      const tagWords = tag.split(/[-_\s]+/); // Split multi-word tags
+      let score = 0;
+      
+      for (const tagWord of tagWords) {
+        // Count occurrences of tag word in content
+        const occurrences = words.filter(w => w.includes(tagWord) || tagWord.includes(w)).length;
+        score += occurrences;
+        
+        // Bonus for exact matches
+        if (words.includes(tagWord)) {
+          score += 5;
+        }
+        
+        // Bonus for title matches
+        if (title.toLowerCase().includes(tagWord)) {
+          score += 10;
+        }
+      }
+      
+      if (score > 0) {
+        tagScores[tag] = score;
+      }
+    }
+    
+    // Return top tags sorted by score
+    return Object.entries(tagScores)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, maxTags)
+      .map(([tag]) => tag);
+  }
+
+  /**
+   * Extract keywords from text to use as auto-generated tags
+   */
+  private extractKeywordsAsTags(text: string, title: string, maxTags: number = 5, extraStopwords: string[] = []): string[] {
+    // Common words to exclude
+    const stopWords = new Set([
+      'the', 'be', 'to', 'of', 'and', 'a', 'in', 'that', 'have', 'i', 'it', 'for', 'not', 
+      'on', 'with', 'he', 'as', 'you', 'do', 'at', 'this', 'but', 'his', 'by', 'from',
+      'they', 'we', 'say', 'her', 'she', 'or', 'an', 'will', 'my', 'one', 'all', 'would',
+      'there', 'their', 'what', 'so', 'up', 'out', 'if', 'about', 'who', 'get', 'which',
+      'go', 'me', 'when', 'make', 'can', 'like', 'time', 'no', 'just', 'him', 'know',
+      'take', 'people', 'into', 'year', 'your', 'good', 'some', 'could', 'them', 'see',
+      'other', 'than', 'then', 'now', 'look', 'only', 'come', 'its', 'over', 'think',
+      'also', 'back', 'after', 'use', 'two', 'how', 'our', 'work', 'first', 'well',
+      'way', 'even', 'new', 'want', 'because', 'any', 'these', 'give', 'day', 'most', 'us',
+      'using', 'used', 'best', 'guide', 'need', 'here', 'more', 'much', 'such', 'very',
+      ...extraStopwords,
+    ]);
+
+    // Check if a word is valid (not a number, not technical notation)
+    const isValidKeyword = (word: string): boolean => {
+      // Reject pure numbers
+      if (/^\d+$/.test(word)) return false;
+      
+      // Reject numbers with units (100vh, 12px, 5rem, etc)
+      if (/^\d+[a-z]{1,4}$/.test(word)) return false;
+      
+      // Reject hex codes
+      if (/^[0-9a-f]{3,8}$/.test(word)) return false;
+      
+      // Reject words that are mostly numbers
+      const digitCount = (word.match(/\d/g) || []).length;
+      if (digitCount / word.length > 0.5) return false;
+      
+      // Reject very short words (less than 3 chars)
+      if (word.length < 3) return false;
+      
+      // Reject single letters repeated
+      if (/^(.)\1+$/.test(word)) return false;
+      
+      return true;
+    };
+
+    // Extract words from title (keep original case to detect capitalized terms)
+    const titleWordsRaw = title.replace(/[^\w\s-]/g, ' ').split(/\s+/).filter(w => w.length > 2);
+    const titleWords = titleWordsRaw.map(w => w.toLowerCase()).filter(w => !stopWords.has(w) && isValidKeyword(w));
+    
+    // Detect capitalized terms in title (likely important nouns/concepts)
+    const capitalizedTerms = titleWordsRaw
+      .filter(w => /^[A-Z]/.test(w) && w.length > 2 && !stopWords.has(w.toLowerCase()) && isValidKeyword(w.toLowerCase()))
+      .map(w => w.toLowerCase());
+    
+    // Extract words from content
+    const contentWords = text.toLowerCase()
+      .replace(/[^\w\s-]/g, ' ')
+      .split(/\s+/)
+      .filter(w => w.length > 3 && !stopWords.has(w) && isValidKeyword(w));
+
+    // Count word frequencies with intelligent weighting
+    const wordFreq: Record<string, number> = {};
+    
+    // Capitalized terms get 5x weight (likely proper nouns or key concepts)
+    for (const word of capitalizedTerms) {
+      wordFreq[word] = (wordFreq[word] || 0) + 5;
+    }
+    
+    // Title words get 3x weight
+    for (const word of titleWords) {
+      wordFreq[word] = (wordFreq[word] || 0) + 3;
+    }
+    
+    // Content words get 1x weight
+    for (const word of contentWords) {
+      wordFreq[word] = (wordFreq[word] || 0) + 1;
+    }
+
+    // Sort by frequency and take top keywords
+    const keywords = Object.entries(wordFreq)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, maxTags)
+      .map(([word]) => word);
+
+    return keywords;
   }
 
   /**
@@ -241,16 +497,74 @@ export default class AutoTaggerPlugin extends Plugin {
     const files = this.getFilesInScopeForCollection(collection);
     const taggedFiles: TFile[] = [];
     
+    this.debug(`[Training] Found ${files.length} files in scope for collection "${collection.name}"`);
+    
+    // Load tag dictionary if specified
+    const dictionary = await this.loadTagDictionary(collection.tagDictionaryPath);
+    const usingDictionary = dictionary.tags.length > 0;
+
+    // Merge blacklist: collection-level + dictionary-level
+    const dictionaryBlacklist = new Set<string>([
+      ...collection.blacklist.map(t => t.toLowerCase()),
+      ...dictionary.blacklist,
+    ]);
+    
+    if (usingDictionary) {
+      this.debug(`[Training] Using tag dictionary with ${dictionary.tags.length} predefined tags`);
+      if (dictionary.stopwords.length > 0) {
+        this.debug(`[Training] Dictionary provides ${dictionary.stopwords.length} extra stopwords`);
+      }
+      if (dictionary.blacklist.length > 0) {
+        this.debug(`[Training] Dictionary blacklist: ${dictionary.blacklist.join(', ')}`);
+      }
+    } else {
+      this.debug(`[Training] No tag dictionary - will auto-extract keywords`);
+    }
+    
     // Train on explicitly tagged notes
+    let filesChecked = 0;
     for (const file of files) {
       const { frontmatter, content } = await this.parseFile(file);
-      const tags = this.getTagsFromFrontmatter(frontmatter, collection);
+      let tags = this.getTagsFromFrontmatter(frontmatter);
+      
+      // If no tags in frontmatter, use tag dictionary or auto-extract
+      if (tags.length === 0) {
+        const title = String(frontmatter.title || file.basename);
+        
+        if (usingDictionary) {
+          // Match content to predefined tags, then filter out blacklisted ones
+          tags = this.matchContentToTags(content, title, dictionary.tags, collection.maxTags)
+            .filter(t => !dictionaryBlacklist.has(t));
+          
+          if (filesChecked < 3) {
+            this.debug(`[Training] File "${file.basename}": matched ${tags.length} dictionary tags: ${tags.join(', ')}`);
+          }
+        } else {
+          // Auto-extract keywords from content, passing dictionary stopwords
+          tags = this.extractKeywordsAsTags(content, title, collection.maxTags, dictionary.stopwords)
+            .filter(t => !dictionaryBlacklist.has(t));
+          
+          if (filesChecked < 3) {
+            this.debug(`[Training] File "${file.basename}": auto-extracted ${tags.length} tags: ${tags.join(', ')}`);
+          }
+        }
+      } else {
+        // Filter frontmatter tags against the merged blacklist too
+        tags = tags.filter(t => !dictionaryBlacklist.has(t));
+        if (filesChecked < 3) {
+          this.debug(`[Training] File "${file.basename}": using ${tags.length} frontmatter tags: ${tags.join(', ')}`);
+        }
+      }
+      
+      filesChecked++;
       
       if (tags.length > 0) {
         classifier.train(content, tags);
         taggedFiles.push(file);
       }
     }
+    
+    this.debug(`[Training] Processed ${files.length} files, found ${taggedFiles.length} with tags`);
     
     // Finalize training
     classifier.finalizeTraining();
@@ -462,10 +776,58 @@ export default class AutoTaggerPlugin extends Plugin {
     
     // Get suggestions from each applicable collection
     for (const collection of applicableCollections) {
+      this.debug(`[getSuggestions] Collection "${collection.name}" (mode: ${collection.dictionaryMode ?? 'learning'}):`);
+
+      // ── Static dictionary mode ──────────────────────────────────────────
+      if (collection.dictionaryMode === 'static') {
+        if (!collection.tagDictionaryPath) {
+          this.debug(`  - Skipping static collection: no dictionary source configured`);
+          continue;
+        }
+        const dictionary = await this.loadTagDictionary(collection.tagDictionaryPath);
+        const allDictTags = [
+          ...dictionary.tags,
+          ...(collection.additionalTags ?? []),
+        ];
+        if (allDictTags.length === 0) {
+          this.debug(`  - Skipping static collection: dictionary is empty or failed to load`);
+          continue;
+        }
+
+        let existingTags: string[] = [];
+        if (Array.isArray(frontmatter.tags)) {
+          existingTags = frontmatter.tags.map((t: unknown) => String(t).toLowerCase());
+        } else if (typeof frontmatter.tags === 'string') {
+          existingTags = [frontmatter.tags.toLowerCase()];
+        }
+
+        const title = String(frontmatter.title || file.basename);
+        const extraStopwords = [
+          ...dictionary.stopwords,
+          ...(collection.additionalStopwords ?? []),
+        ];
+
+        const matched = this.matchContentToTags(content, title, allDictTags, collection.maxTags, extraStopwords)
+          .filter(tag => !dictionary.blacklist.includes(tag))
+          .filter(tag => !existingTags.includes(tag));
+
+        this.debug(`  - Static: matched ${matched.length} tags: ${matched.join(', ')}`);
+
+        // Assign descending pseudo-probabilities (0.95 for top match, decreasing by 0.05)
+        matched.forEach((tag, i) => {
+          const prob = Math.max(0.5, 0.95 - i * 0.05);
+          const existing = tagScores.get(tag);
+          if (!existing || prob > existing.probability) {
+            tagScores.set(tag, { probability: prob, collectionName: collection.name });
+          }
+        });
+        continue;
+      }
+
+      // ── Learning (trained classifier) mode ──────────────────────────────
       const classifier = this.classifiers.get(collection.id);
       const stats = classifier?.getStats();
       
-      this.debug(`[getSuggestions] Collection "${collection.name}":`);
       this.debug(`  - Type: ${collection.classifierType || 'basic'}`);
       this.debug(`  - Classifier loaded: ${!!classifier}`);
       this.debug(`  - Stats: ${stats ? `${stats.totalDocs} docs, ${stats.totalTags} tags` : 'none'}`);
@@ -477,7 +839,14 @@ export default class AutoTaggerPlugin extends Plugin {
         continue;
       }
 
-      const existingTags = this.getTagsFromFrontmatter(frontmatter, collection);
+      // Get ALL existing tags (including blacklisted ones) so classifier knows not to suggest them
+      // Blacklist filtering happens during training and when removing tags, not during suggestion
+      let existingTags: string[] = [];
+      if (Array.isArray(frontmatter.tags)) {
+        existingTags = frontmatter.tags.map((t: unknown) => String(t).toLowerCase());
+      } else if (typeof frontmatter.tags === 'string') {
+        existingTags = [frontmatter.tags.toLowerCase()];
+      }
       this.debug(`  - Existing tags: ${existingTags.join(', ') || 'none'}`);
       
       const whitelist = collection.whitelist.length > 0 ? collection.whitelist : undefined;
@@ -495,6 +864,8 @@ export default class AutoTaggerPlugin extends Plugin {
       if (suggestions.length > 0) {
         this.debug(`    ${suggestions.map(s => `${s.tag} (${(s.probability * 100).toFixed(1)}%)`).join(', ')}`);
       }
+      this.debug(`  - Existing tags for filtering: [${existingTags.join(', ')}]`);
+      this.debug(`  - Suggested tags: [${suggestions.map(s => s.tag).join(', ')}]`);
       
       // Merge suggestions - keep highest probability for each tag
       for (const sug of suggestions) {
@@ -554,9 +925,8 @@ export default class AutoTaggerPlugin extends Plugin {
     const suggestions = await this.getSuggestions(file);
     const { frontmatter } = await this.parseFile(file);
     
-    // Collect all existing tags (using first collection's blacklist for compatibility)
-    const firstCollection = applicableCollections[0];
-    const existingTags = this.getTagsFromFrontmatter(frontmatter, firstCollection);
+    // Collect all existing tags
+    const existingTags = this.getTagsFromFrontmatter(frontmatter);
     
     new TagSuggestionModal(this.app, this, file, suggestions, existingTags).open();
   }
@@ -569,6 +939,12 @@ export default class AutoTaggerPlugin extends Plugin {
     const { frontmatter, content } = await this.parseFile(file);
     const applicableCollections = this.getApplicableCollections(file);
     
+    this.debug(`[applyTags] File: ${file.basename}`);
+    this.debug(`[applyTags] Incoming newTags: [${newTags.join(', ')}]`);
+    
+    // Normalize new tags to lowercase for consistency
+    const normalizedNewTags = newTags.map(t => t.toLowerCase());
+    
     // Get existing tags
     let existingTags: string[] = [];
     if (Array.isArray(frontmatter.tags)) {
@@ -577,29 +953,41 @@ export default class AutoTaggerPlugin extends Plugin {
       existingTags = [frontmatter.tags.toLowerCase()];
     }
     
+    this.debug(`[applyTags] Existing tags in file: [${existingTags.join(', ')}]`);
+    this.debug(`[applyTags] Normalized new tags: [${normalizedNewTags.join(', ')}]`);
+    
     let finalTags: string[];
     let removed: string[] = [];
     
     if (mode === 'overwrite') {
-      finalTags = [...new Set(newTags)];
+      finalTags = [...new Set(normalizedNewTags)];
       removed = existingTags.filter(t => !finalTags.includes(t));
     } else {
       // Collect all blacklisted tags from applicable collections
       const allBlacklist = new Set<string>();
       for (const collection of applicableCollections) {
-        collection.blacklist.forEach(tag => allBlacklist.add(tag));
+        collection.blacklist.forEach(tag => allBlacklist.add(tag.toLowerCase()));
       }
       
       // Filter out blacklisted tags
       const filteredExisting = existingTags.filter(tag => !allBlacklist.has(tag));
       removed = existingTags.filter(tag => allBlacklist.has(tag));
       
-      // Merge and deduplicate
-      finalTags = [...new Set([...filteredExisting, ...newTags])];
+      // Merge and deduplicate (only add tags that don't already exist)
+      const existingSet = new Set(filteredExisting);
+      const tagsToAdd = normalizedNewTags.filter(tag => !existingSet.has(tag));
+      finalTags = [...filteredExisting, ...tagsToAdd];
+      
+      this.debug(`[applyTags] Filtered existing: [${filteredExisting.join(', ')}]`);
+      this.debug(`[applyTags] Tags to add: [${tagsToAdd.join(', ')}]`);
+      this.debug(`[applyTags] Final tags: [${finalTags.join(', ')}]`);
     }
     
     // Calculate added tags
     const added = finalTags.filter(t => !existingTags.includes(t));
+    
+    this.debug(`[applyTags] Added tags: [${added.join(', ')}]`);
+    this.debug(`[applyTags] Removed tags: [${removed.join(', ')}]`);
     
     frontmatter.tags = finalTags;
     
@@ -721,12 +1109,16 @@ export default class AutoTaggerPlugin extends Plugin {
    * Tag all notes in scope
    */
   async tagAllNotes(mode: 'integrate' | 'overwrite' = 'integrate'): Promise<void> {
+    console.log('[Auto Tagger] Starting batch tag operation');
+    console.log('[Auto Tagger] Debug enabled:', this.settings?.debugToConsole);
+    
     if (this.classifiers.size === 0) {
       new Notice('No trained classifiers. Please train collections first.');
       return;
     }
     
     const files = this.getFilesInScope();
+    console.log(`[Auto Tagger] Processing ${files.length} files`);
     const modeText = mode === 'overwrite' ? 'Overwriting' : 'Integrating';
     const notice = new Notice(`${modeText} tags for ${files.length} files...`, 0);
     
@@ -856,6 +1248,75 @@ export default class AutoTaggerPlugin extends Plugin {
     }
   }
 
+  /**
+   * Remove all tags from files in a collection's scope
+   */
+  async removeAllTagsFromCollection(collectionId: string): Promise<void> {
+    const collection = this.settings.collections.find(c => c.id === collectionId);
+    if (!collection) {
+      new Notice('Collection not found');
+      return;
+    }
+
+    const files = this.getFilesInScopeForCollection(collection);
+    const notice = new Notice(`Removing all tags from ${files.length} files...`, 0);
+    
+    let filesModified = 0;
+    let totalRemoved = 0;
+    const details: Array<{ file: string, removed: string[] }> = [];
+
+    for (const file of files) {
+      try {
+        const { frontmatter, content } = await this.parseFile(file);
+        
+        // Get existing tags
+        let existingTags: string[] = [];
+        if (Array.isArray(frontmatter.tags)) {
+          existingTags = frontmatter.tags.map((t: unknown) => String(t).toLowerCase());
+        } else if (typeof frontmatter.tags === 'string') {
+          existingTags = [frontmatter.tags.toLowerCase()];
+        }
+
+        if (existingTags.length === 0) {
+          continue;
+        }
+
+        // Remove all tags
+        const removedTags = existingTags;
+        frontmatter.tags = undefined;
+        
+        // Rebuild file content
+        const newFrontmatter = stringifyYaml(frontmatter).trim();
+        const newContent = `---\n${newFrontmatter}\n---\n${content}`;
+        
+        await this.app.vault.modify(file, newContent);
+        
+        filesModified++;
+        totalRemoved += removedTags.length;
+        details.push({ 
+          file: file.basename, 
+          removed: removedTags 
+        });
+      } catch (e) {
+        console.error(`Failed to remove tags from ${file.path}:`, e);
+      }
+    }
+
+    notice.hide();
+
+    if (filesModified > 0) {
+      new RemoveTagsSummaryModal(
+        this.app,
+        `Removed all tags from collection: ${collection.name}`,
+        filesModified,
+        totalRemoved,
+        details
+      ).open();
+    } else {
+      new Notice('No tags were found to remove');
+    }
+  }
+
   onunload() {
     // Save all classifier data on unload
     for (const collection of this.settings.collections) {
@@ -920,6 +1381,63 @@ class BatchSummaryModal extends Modal {
           addedDiv.createEl('span', { text: '  ➕ ' });
           addedDiv.createEl('span', { text: detail.added.join(', ') });
         }
+        
+        if (detail.removed.length > 0) {
+          const removedDiv = fileEntry.createEl('div', { cls: 'batch-tags-removed' });
+          removedDiv.createEl('span', { text: '  🗑️ ' });
+          removedDiv.createEl('span', { text: detail.removed.join(', ') });
+        }
+      }
+    }
+
+    // Close button
+    const buttonDiv = contentEl.createEl('div', { cls: 'modal-button-container' });
+    const closeButton = buttonDiv.createEl('button', { text: 'Close', cls: 'mod-cta' });
+    closeButton.addEventListener('click', () => this.close());
+  }
+
+  onClose() {
+    const { contentEl } = this;
+    contentEl.empty();
+  }
+}
+
+/**
+ * Modal to display tag removal summary
+ */
+class RemoveTagsSummaryModal extends Modal {
+  constructor(
+    app: App,
+    private title: string,
+    private filesModified: number,
+    private tagsRemoved: number,
+    private details: Array<{ file: string, removed: string[] }>
+  ) {
+    super(app);
+  }
+
+  onOpen() {
+    const { contentEl } = this;
+    contentEl.empty();
+    contentEl.addClass('auto-tagger-batch-summary');
+
+    contentEl.createEl('h2', { text: this.title });
+
+    // Summary
+    const summary = contentEl.createEl('div', { cls: 'batch-summary' });
+    summary.createEl('p', { text: `✅ Files modified: ${this.filesModified}` });
+    summary.createEl('p', { text: `🗑️ Tags removed: ${this.tagsRemoved}` });
+
+    // Details section (collapsible)
+    if (this.details.length > 0) {
+      const detailsSection = contentEl.createEl('details');
+      detailsSection.createEl('summary', { text: `📋 View details (${this.details.length} files)` });
+      
+      const detailsList = detailsSection.createEl('div', { cls: 'batch-details-list' });
+      
+      for (const detail of this.details) {
+        const fileEntry = detailsList.createEl('div', { cls: 'batch-file-entry' });
+        fileEntry.createEl('div', { text: detail.file, cls: 'batch-file-name' });
         
         if (detail.removed.length > 0) {
           const removedDiv = fileEntry.createEl('div', { cls: 'batch-tags-removed' });

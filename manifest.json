@@ -1,9 +1,9 @@
 {
   "id": "auto-tagger",
   "name": "Auto Tagger",
-  "version": "2.0.11",
+  "version": "2.0.12",
   "minAppVersion": "0.15.0",
-  "description": "Multi-collection semantic tag suggestions. Create specialized classifiers for different note types with independent training and filtering.",
+  "description": "Multi-collection semantic tag suggestions with learning/static dictionary modes and advanced filtering.",
   "author": "Alessandro Canepa",
   "isDesktopOnly": false
 }

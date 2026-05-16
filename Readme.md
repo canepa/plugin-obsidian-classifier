@@ -1,6 +1,6 @@
 # Auto Tagger for Obsidian
 
-![Version](https://img.shields.io/badge/version-2.0.10-blue)
+![Version](https://img.shields.io/badge/version-2.0.12-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
 Automatically suggest and apply tags to your notes using semantic classifiers with advanced filtering. Create specialized collections for different note types, each with its own training scope and tag vocabulary.
@@ -11,11 +11,12 @@ Automatically suggest and apply tags to your notes using semantic classifiers wi
 - **🤖 Dual Classifier Types** - Choose between Basic (fast, simple) or Advanced (enhanced filtering, semantic understanding)
 - **🎯 Smart Filtering** - Advanced classifier uses similarity + distinctive word overlap for higher precision
 - **🔄 Multi-Classifier Aggregation** - Combines suggestions from all applicable collections
+- **📚 Static Dictionary Mode** - Use local/remote JSON dictionaries without classifier training
+- **🌐 Dictionary Sources** - Load from vault file, local filesystem file (desktop), or URL and save locally
 - **📊 Detailed Statistics** - View comprehensive classifier stats (vocabulary size, top tags, training date)
 - **⚙️ Flexible Configuration** - Per-collection scope, thresholds, whitelist/blacklist
 - **🚫 Duplicate Prevention** - Never suggests tags already in your note
-- **🧹 Auto-Cleanup** - Blacklisted tags are automatically removed from notes when processed
-- **� Batch Summaries** - Detailed reports showing added/removed tags for each file
+- **🧹 Auto-Cleanup** - Blacklisted tags are automatically removed from notes when processed- **🗑️ Tag Removal** - Remove all tags from a collection across files in scope- **� Batch Summaries** - Detailed reports showing added/removed tags for each file
 - **�🐛 Debug Mode** - Optional detailed logging for troubleshooting and optimization
 - **🎨 Clean Interface** - Interactive modal showing suggestions with collection sources
 
@@ -57,11 +58,25 @@ Automatically suggest and apply tags to your notes using semantic classifiers wi
 2. Press `Ctrl/Cmd + P` → "Suggest tags for current note"
 3. Review suggestions and select tags to add
 
+### 4. Optional: Use Static Dictionary Mode
+
+1. Open a collection in **Settings** → **Auto Tagger**
+2. Set **Source mode** to **Static dictionary**
+3. Configure dictionary source:
+  - **Local file** (vault path)
+  - **Browse vault**
+  - **Browse filesystem** (desktop)
+  - **Import from URL** (saved into your vault)
+4. Optionally set:
+  - **Additional tags** (comma-separated)
+  - **Additional stopwords** (comma-separated)
+
 ## 📖 Usage Guide
 
 ### Collection Setup
 
 Collections let you organize notes with specialized classifiers. Each collection has:
+
 - **Independent scope** - Which folders to process  
 - **Tag filters** - Whitelist/blacklist for this collection  
 - **Training data** - Learned from notes within scope  
@@ -102,6 +117,18 @@ Access via Command Palette (`Ctrl/Cmd + P`):
 | **Batch tag all notes** | Tag all notes with detailed summary of changes |
 | **Batch tag folder** | Tag folder notes with detailed summary of changes |
 
+### Example Dictionaries
+
+The repository includes ready-to-use JSON dictionaries in `dictionaries/`:
+
+- `dictionaries/digital-marketing-english.json`
+- `dictionaries/digital-marketing-italian.json`
+- `dictionaries/household-english.json`
+- `dictionaries/household-italian.json`
+- `dictionaries/medium-english.json`
+
+You can reference these files directly from your vault (if copied there), or use them as templates to build your own dictionaries.
+
 ### Multi-Collection Workflow
 
 When a note matches multiple collections:
@@ -133,7 +160,19 @@ The details view shows exactly which tags were added or removed for each file, m
 
 ### Per-Collection Settings
 
+**Source Mode:**
+
+- **Learning (default)** - Train classifier on notes in scope
+- **Static dictionary** - Skip training and suggest tags from dictionary matching
+
+In **Static dictionary** mode:
+
+- **Dictionary source** - Vault path, local filesystem path, or URL
+- **Additional tags** - Adds extra tags on top of dictionary tags
+- **Additional stopwords** - Extra words ignored during content matching
+
 **Classifier Type:**
+
 - **Basic (TF-IDF)** - Fast, simple TF-IDF embedding classifier  
   - Good for: General use, quick training, smaller collections
   - Features: Word-level TF-IDF embeddings, cosine similarity, 40% overlap threshold
@@ -147,15 +186,18 @@ The details view shows exactly which tags were added or removed for each file, m
     - **Better discrimination** - Enhanced TF-IDF with defensive NaN handling
 
 **Folder Scope:**
+
 - **All folders** - Process entire vault
 - **Include specific** - Only process listed folders
 - **Exclude specific** - Process all except listed folders
 
 **Tag Filtering:**
+
 - **Whitelist** - Restrict suggestions to only these tags (empty = allow all learned tags)
 - **Blacklist** - Exclude from training, never suggest, and **automatically remove from notes** if present
 
 **Classification Parameters:**
+
 - **Similarity threshold** (0.1-0.7)
   - 0.1-0.2: Very liberal
   - 0.3-0.4: Balanced (recommended)
@@ -167,6 +209,9 @@ The details view shows exactly which tags were added or removed for each file, m
 - **Enable/Disable** - Toggle collections without deleting
 - **Duplicate** - Copy configuration to new collection
 - **Delete** - Permanently remove collection
+- **Clear training** - Delete trained data and start fresh
+- **Remove all tags** - Remove all collection tags from files in scope (shows detailed summary)
+- **Debug stats** - View vocabulary size, top tags, training date, and distinctive words
 - **All Tags View** - See trained tags with document counts
 
 ## 🔧 How It Works
@@ -242,12 +287,14 @@ The plugin uses **embedding-based semantic classification** with TF-IDF vectors:
 ## 🐛 Troubleshooting
 
 **No suggestions appearing:**
+
 - Verify note is in scope of an enabled collection
 - Check that collections are trained (click "Debug stats" to verify)
 - Look for blacklisted tags
 - Enable debug mode and check console logs (`F12`)
 
 **Irrelevant suggestions:**
+
 - Try **Advanced classifier** for stricter filtering (55% threshold)
 - Increase similarity threshold in collection settings (0.4-0.5)
 - Check which collection suggested it (shown in brackets)
@@ -255,17 +302,20 @@ The plugin uses **embedding-based semantic classification** with TF-IDF vectors:
 - Enable debug mode to see similarity scores and matching words
 
 **Too few suggestions:**
+
 - Try **Basic classifier** for broader coverage (40% threshold)
 - Lower similarity threshold (0.2-0.3)
 - Check whitelist isn't too restrictive
 - Verify enough training data (50+ tagged notes recommended)
 
 **Training issues:**
+
 - Check console for errors (`F12`)
 - Expected warning: "Skipping word 'constructor'" (safe to ignore)
 - If NaN errors appear, retrain collection (defensive checks will handle it)
 
 **Debug mode:**
+
 - Enable in Settings → Auto Tagger → Debug to console
 - Shows classification pipeline details in console
 - Logs embedding generation, similarity calculations, filter evaluation
@@ -311,11 +361,13 @@ The project uses ESLint with the official [Obsidian ESLint plugin](https://githu
 For development deployment:
 
 1. Copy the example configuration:
+
    ```bash
    cp deploy.config.example.ps1 deploy.config.ps1
    ```
 
 2. Update `deploy.config.ps1` with your vault path:
+
    ```powershell
    $pluginDir = "C:\path\to\vault\.obsidian\plugins\obsidian-auto-tagger"
    ```
@@ -328,7 +380,7 @@ MIT License - see [LICENSE](LICENSE) file for details
 
 ## 👤 Author
 
-**Alessandro Canepa**
+Alessandro Canepa
 
 - GitHub: [@canepa](https://github.com/canepa)
 - Repository: [plugin-obsidian-classifier](https://github.com/canepa/plugin-obsidian-classifier)
