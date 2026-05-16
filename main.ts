@@ -1,7 +1,8 @@
-import { App, Modal, Notice, Plugin, TFile, parseYaml, requestUrl, stringifyYaml } from 'obsidian';
+import { App, Modal, Notice, Plugin, TFile, parseYaml, stringifyYaml } from 'obsidian';
 import { EmbeddingClassifier } from './embedding-classifier';
 import { AdvancedEmbeddingClassifier } from './advanced-classifier';
 import { AutoTaggerSettings, AutoTaggerSettingTab, DEFAULT_SETTINGS, migrateSettings, Collection, TagDictionary } from './settings';
+import { isRemoteDictionarySource, parseLegacyDictionaryText, readDictionaryRaw } from './dictionary-utils';
 
 /** Internal normalised representation of a loaded dictionary. */
 interface LoadedDictionary {
@@ -117,6 +118,7 @@ export default class AutoTaggerPlugin extends Plugin {
     for (const collection of this.settings.collections) {
       if (!collection.classifierType)               collection.classifierType    = 'basic';
       if (collection.tagDictionaryPath === undefined)  collection.tagDictionaryPath  = '';
+      if (collection.tagDictionarySnapshot === undefined) collection.tagDictionarySnapshot = '';
       if (collection.dictionaryMode    === undefined)  collection.dictionaryMode    = 'learning';
       if (collection.additionalTags    === undefined)  collection.additionalTags    = [];
       if (collection.additionalStopwords === undefined) collection.additionalStopwords = [];
@@ -272,72 +274,19 @@ export default class AutoTaggerPlugin extends Plugin {
    */
   private async loadTagDictionary(source: string): Promise<LoadedDictionary> {
     if (!source) return EMPTY_DICTIONARY;
-
-    // ── Remote URL ──────────────────────────────────────────────────────────
-    if (source.startsWith('http://') || source.startsWith('https://')) {
-      try {
-        const response = await requestUrl({ url: source, method: 'GET' });
-        if (response.status < 200 || response.status >= 300) {
-          console.error(`[loadTagDictionary] HTTP ${response.status} fetching "${source}"`);
-          return EMPTY_DICTIONARY;
-        }
-        const loaded = this.parseDictionaryJson(response.text, source);
-        this.debug(`[loadTagDictionary] Remote: loaded ${loaded.tags.length} tags, ${loaded.stopwords.length} stopwords, ${loaded.blacklist.length} blacklisted from ${source}`);
-        return loaded;
-      } catch (err) {
-        console.error(`[loadTagDictionary] Network error fetching "${source}":`, err);
-        return EMPTY_DICTIONARY;
-      }
-    }
-
-    // ── Absolute filesystem path (desktop only) ──────────────────────────────
-    const isAbsolute = /^[A-Za-z]:[\\\/]/.test(source) || source.startsWith('/');
-    if (isAbsolute) {
-      try {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const fs = (window as any).require('fs') as typeof import('fs');
-        const content = fs.readFileSync(source, 'utf8');
-        if (source.toLowerCase().endsWith('.json')) {
-          const loaded = this.parseDictionaryJson(content, source);
-          this.debug(`[loadTagDictionary] FS JSON: loaded ${loaded.tags.length} tags from ${source}`);
-          return loaded;
-        }
-        const tags = content
-          .split('\n')
-          .map((line: string) => line.trim().toLowerCase())
-          .filter((line: string) => line.length > 0 && !line.startsWith('#'))
-          .filter((tag: string, i: number, self: string[]) => self.indexOf(tag) === i);
-        this.debug(`[loadTagDictionary] FS text: loaded ${tags.length} tags from ${source}`);
-        return { tags, stopwords: [], blacklist: [] };
-      } catch (err) {
-        console.error(`[loadTagDictionary] FS error reading "${source}":`, err);
-        return EMPTY_DICTIONARY;
-      }
-    }
-
-    // ── Local vault file ─────────────────────────────────────────────────────
     try {
-      const file = this.app.vault.getAbstractFileByPath(source);
-      if (!file || !(file instanceof TFile)) {
-        this.debug(`[loadTagDictionary] File not found: ${source}`);
-        return EMPTY_DICTIONARY;
-      }
+      const content = await readDictionaryRaw(this.app, source);
+      const isRemote = isRemoteDictionarySource(source);
+      const isJson = source.toLowerCase().endsWith('.json');
 
-      const content = await this.app.vault.read(file);
-
-      // JSON dictionary (new format)
-      if (source.toLowerCase().endsWith('.json')) {
+      if (isRemote || isJson) {
         const loaded = this.parseDictionaryJson(content, source);
-        this.debug(`[loadTagDictionary] JSON: loaded ${loaded.tags.length} tags, ${loaded.stopwords.length} stopwords, ${loaded.blacklist.length} blacklisted from ${source}`);
+        const sourceType = isRemote ? 'Remote' : 'JSON';
+        this.debug(`[loadTagDictionary] ${sourceType}: loaded ${loaded.tags.length} tags, ${loaded.stopwords.length} stopwords, ${loaded.blacklist.length} blacklisted from ${source}`);
         return loaded;
       }
 
-      // Legacy text format (one tag per line)
-      const tags = content
-        .split('\n')
-        .map(line => line.trim().toLowerCase())
-        .filter(line => line.length > 0 && !line.startsWith('#'))
-        .filter((tag, index, self) => self.indexOf(tag) === index);
+      const tags = parseLegacyDictionaryText(content);
       this.debug(`[loadTagDictionary] Legacy text: loaded ${tags.length} tags from ${source}`);
       return { tags, stopwords: [], blacklist: [] };
 
@@ -345,6 +294,47 @@ export default class AutoTaggerPlugin extends Plugin {
       console.error(`[loadTagDictionary] Error loading dictionary from "${source}":`, error);
       return EMPTY_DICTIONARY;
     }
+  }
+
+  private loadTagDictionaryFromSnapshot(raw: string, sourceHint: string): LoadedDictionary {
+    const trimmed = raw.trim();
+    if (!trimmed) return EMPTY_DICTIONARY;
+
+    const likelyJson = isRemoteDictionarySource(sourceHint)
+      || sourceHint.toLowerCase().endsWith('.json')
+      || trimmed.startsWith('{');
+
+    if (likelyJson) {
+      const parsed = this.parseDictionaryJson(trimmed, `${sourceHint}#snapshot`);
+      if (parsed.tags.length > 0 || parsed.stopwords.length > 0 || parsed.blacklist.length > 0) {
+        return parsed;
+      }
+    }
+
+    const tags = parseLegacyDictionaryText(trimmed);
+    return { tags, stopwords: [], blacklist: [] };
+  }
+
+  private async loadTagDictionaryForCollection(collection: Collection): Promise<LoadedDictionary> {
+    if (collection.tagDictionaryPath) {
+      const loaded = await this.loadTagDictionary(collection.tagDictionaryPath);
+      if (loaded.tags.length > 0 || loaded.stopwords.length > 0 || loaded.blacklist.length > 0) {
+        return loaded;
+      }
+    }
+
+    if (collection.tagDictionarySnapshot) {
+      const fallback = this.loadTagDictionaryFromSnapshot(
+        collection.tagDictionarySnapshot,
+        collection.tagDictionaryPath || 'snapshot'
+      );
+      if (fallback.tags.length > 0 || fallback.stopwords.length > 0 || fallback.blacklist.length > 0) {
+        this.debug(`[loadTagDictionary] Using embedded snapshot for collection "${collection.name}"`);
+      }
+      return fallback;
+    }
+
+    return EMPTY_DICTIONARY;
   }
 
   /**
@@ -500,7 +490,7 @@ export default class AutoTaggerPlugin extends Plugin {
     this.debug(`[Training] Found ${files.length} files in scope for collection "${collection.name}"`);
     
     // Load tag dictionary if specified
-    const dictionary = await this.loadTagDictionary(collection.tagDictionaryPath);
+    const dictionary = await this.loadTagDictionaryForCollection(collection);
     const usingDictionary = dictionary.tags.length > 0;
 
     // Merge blacklist: collection-level + dictionary-level
@@ -784,7 +774,7 @@ export default class AutoTaggerPlugin extends Plugin {
           this.debug(`  - Skipping static collection: no dictionary source configured`);
           continue;
         }
-        const dictionary = await this.loadTagDictionary(collection.tagDictionaryPath);
+        const dictionary = await this.loadTagDictionaryForCollection(collection);
         const allDictTags = [
           ...dictionary.tags,
           ...(collection.additionalTags ?? []),

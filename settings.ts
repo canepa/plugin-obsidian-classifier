@@ -1,5 +1,6 @@
 import { App, FuzzySuggestModal, Plugin, PluginSettingTab, Setting, Notice, Modal, TFile, requestUrl } from 'obsidian';
 import type { EmbeddingClassifierData, EmbeddingClassifier } from './embedding-classifier';
+import { readDictionaryRaw } from './dictionary-utils';
 
 /**
  * Confirmation modal for destructive actions
@@ -130,6 +131,8 @@ export interface Collection {
   
   // Tag dictionary (optional path to file with allowed tags)
   tagDictionaryPath: string;
+  // Embedded raw copy of dictionary content, used if file/url becomes unavailable
+  tagDictionarySnapshot: string;
 
   // Source mode: 'learning' = train on vault notes; 'static' = use dictionary only, no training
   dictionaryMode: 'learning' | 'static';
@@ -169,6 +172,7 @@ export const DEFAULT_COLLECTION: Omit<Collection, 'id' | 'name'> = {
   enabled: true,
   lastTrained: null,
   tagDictionaryPath: '',
+  tagDictionarySnapshot: '',
   dictionaryMode: 'learning',
   additionalTags: [],
   additionalStopwords: [],
@@ -194,6 +198,7 @@ export function migrateSettings(data: unknown): AutoTaggerSettings {
     const settings = data as AutoTaggerSettings;
     for (const col of settings.collections) {
       if (col.tagDictionaryPath === undefined)    col.tagDictionaryPath    = '';
+      if (col.tagDictionarySnapshot === undefined) col.tagDictionarySnapshot = '';
       if (col.dictionaryMode === undefined)        col.dictionaryMode        = 'learning';
       if (col.additionalTags === undefined)        col.additionalTags        = [];
       if (col.additionalStopwords === undefined)   col.additionalStopwords   = [];
@@ -215,6 +220,7 @@ export function migrateSettings(data: unknown): AutoTaggerSettings {
     maxTags: (oldData.maxTags as number) ?? 5,
     classifierData: (oldData.classifierData as EmbeddingClassifierData) || null,
     tagDictionaryPath: '',
+    tagDictionarySnapshot: '',
     dictionaryMode: 'learning',
     additionalTags: [],
     additionalStopwords: [],
@@ -246,20 +252,16 @@ export class AutoTaggerSettingTab extends PluginSettingTab {
 
   /** Read raw text from vault path, absolute fs path, or remote URL — used by the preview panel. */
   private async _readDictionaryRaw(source: string): Promise<string> {
-    if (source.startsWith('http://') || source.startsWith('https://')) {
-      const resp = await requestUrl({ url: source, method: 'GET' });
-      if (resp.status < 200 || resp.status >= 300) throw new Error(`HTTP ${resp.status}`);
-      return resp.text;
+    return readDictionaryRaw(this.app, source);
+  }
+
+  private async _captureDictionarySnapshot(collection: Collection, rawOverride?: string): Promise<void> {
+    try {
+      const raw = rawOverride ?? await this._readDictionaryRaw(collection.tagDictionaryPath);
+      collection.tagDictionarySnapshot = raw;
+    } catch {
+      // Keep the previous snapshot if refresh fails.
     }
-    const isAbsolute = /^[A-Za-z]:[\\\/]/.test(source) || source.startsWith('/');
-    if (isAbsolute) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const fs = (window as any).require('fs') as typeof import('fs');
-      return fs.readFileSync(source, 'utf8');
-    }
-    const file = this.app.vault.getAbstractFileByPath(source);
-    if (!file || !(file instanceof TFile)) throw new Error(`File not found in vault: ${source}`);
-    return this.app.vault.read(file);
   }
 
   private createNewCollection(): Collection {
@@ -278,7 +280,7 @@ export class AutoTaggerSettingTab extends PluginSettingTab {
     // Version identifier for debugging
     containerEl.createEl('div', { 
       cls: 'auto-tagger-version',
-      text: 'Build: 2.0.10'
+      text: 'Build: 2.0.13'
     });
 
     new Setting(containerEl)
@@ -541,16 +543,21 @@ export class AutoTaggerSettingTab extends PluginSettingTab {
       new Setting(collectionContainer)
         .setName('Include folders')
         .setDesc('Comma-separated list of folder paths')
-        .addTextArea(text => text
-          .setPlaceholder('Folder1, folder2/subfolder')
-          .setValue(collection.includeFolders.join(', '))
-          .onChange(async (value) => {
-            collection.includeFolders = value
-              .split(',')
-              .map(f => f.trim())
-              .filter(f => f.length > 0);
-            await this.plugin.saveSettings();
-          }));
+        .setClass('auto-tagger-compact-textarea-setting')
+        .addTextArea(text => {
+          text.inputEl.rows = 2;
+          text
+            .setPlaceholder('Folder1, folder2/subfolder')
+            .setValue(collection.includeFolders.join(', '))
+            .onChange(async (value) => {
+              collection.includeFolders = value
+                .split(',')
+                .map(f => f.trim())
+                .filter(f => f.length > 0);
+              await this.plugin.saveSettings();
+            });
+          return text;
+        });
     }
 
     if (collection.folderMode === 'exclude') {
@@ -600,6 +607,7 @@ export class AutoTaggerSettingTab extends PluginSettingTab {
             const v = value.trim();
             if (v) {
               collection.tagDictionaryPath = v;
+              await this._captureDictionarySnapshot(collection);
               await this.plugin.saveSettings();
               this.display();
             }
@@ -612,6 +620,7 @@ export class AutoTaggerSettingTab extends PluginSettingTab {
           .onClick(() => {
             new VaultDictionaryPickerModal(this.app, async (file) => {
               collection.tagDictionaryPath = file.path;
+              await this._captureDictionarySnapshot(collection);
               await this.plugin.saveSettings();
               this.display();
             }).open();
@@ -633,6 +642,7 @@ export class AutoTaggerSettingTab extends PluginSettingTab {
               });
               if (!result.canceled && result.filePaths.length > 0) {
                 collection.tagDictionaryPath = result.filePaths[0] as string;
+                await this._captureDictionarySnapshot(collection);
                 await this.plugin.saveSettings();
                 this.display();
               }
@@ -676,6 +686,7 @@ export class AutoTaggerSettingTab extends PluginSettingTab {
               else          { await this.app.vault.create(destPath, resp.text); }
 
               collection.tagDictionaryPath = destPath;
+              await this._captureDictionarySnapshot(collection, resp.text);
               await this.plugin.saveSettings();
               this.display();
             } catch (e) {
@@ -700,6 +711,7 @@ export class AutoTaggerSettingTab extends PluginSettingTab {
           .setButtonText('Change dictionary')
           .onClick(async () => {
             collection.tagDictionaryPath = '';
+            collection.tagDictionarySnapshot = '';
             await this.plugin.saveSettings();
             this.display();
           }))
@@ -722,6 +734,7 @@ export class AutoTaggerSettingTab extends PluginSettingTab {
                   if (ex) { await this.app.vault.modify(ex, resp.text); }
                   else    { await this.app.vault.create(destPath, resp.text); }
                   collection.tagDictionaryPath = destPath;
+                  await this._captureDictionarySnapshot(collection, resp.text);
                   await this.plugin.saveSettings();
                   this.display();
                 } catch (e) {
@@ -737,7 +750,16 @@ export class AutoTaggerSettingTab extends PluginSettingTab {
       setTimeout(() => {
         void (async () => {
           try {
-            const raw = await this._readDictionaryRaw(collection.tagDictionaryPath);
+            let raw = '';
+            try {
+              raw = await this._readDictionaryRaw(collection.tagDictionaryPath);
+            } catch {
+              if (collection.tagDictionarySnapshot) {
+                raw = collection.tagDictionarySnapshot;
+              } else {
+                throw new Error(`Unable to load dictionary from ${collection.tagDictionaryPath}`);
+              }
+            }
             let data: Record<string, unknown> = {};
             if (collection.tagDictionaryPath.toLowerCase().endsWith('.json')) {
               data = JSON.parse(raw) as Record<string, unknown>;
@@ -806,24 +828,34 @@ export class AutoTaggerSettingTab extends PluginSettingTab {
       new Setting(collectionContainer)
         .setName('Additional tags')
         .setDesc('Extra tags to include on top of the dictionary (comma-separated)')
-        .addTextArea(text => text
-          .setPlaceholder('project, review, inbox')
-          .setValue((collection.additionalTags ?? []).join(', '))
-          .onChange(async (value) => {
-            collection.additionalTags = value.split(',').map(t => t.trim().toLowerCase()).filter(Boolean);
-            await this.plugin.saveSettings();
-          }));
+        .setClass('auto-tagger-compact-textarea-setting')
+        .addTextArea(text => {
+          text.inputEl.rows = 2;
+          text
+            .setPlaceholder('project, review, inbox')
+            .setValue((collection.additionalTags ?? []).join(', '))
+            .onChange(async (value) => {
+              collection.additionalTags = value.split(',').map(t => t.trim().toLowerCase()).filter(Boolean);
+              await this.plugin.saveSettings();
+            });
+          return text;
+        });
 
       new Setting(collectionContainer)
         .setName('Additional stopwords')
         .setDesc('Extra words to ignore when matching content to tags (comma-separated)')
-        .addTextArea(text => text
-          .setPlaceholder('the, and, or, is')
-          .setValue((collection.additionalStopwords ?? []).join(', '))
-          .onChange(async (value) => {
-            collection.additionalStopwords = value.split(',').map(t => t.trim().toLowerCase()).filter(Boolean);
-            await this.plugin.saveSettings();
-          }));
+        .setClass('auto-tagger-compact-textarea-setting')
+        .addTextArea(text => {
+          text.inputEl.rows = 2;
+          text
+            .setPlaceholder('the, and, or, is')
+            .setValue((collection.additionalStopwords ?? []).join(', '))
+            .onChange(async (value) => {
+              collection.additionalStopwords = value.split(',').map(t => t.trim().toLowerCase()).filter(Boolean);
+              await this.plugin.saveSettings();
+            });
+          return text;
+        });
     } else {
       // Learning mode: whitelist, blacklist, all-tags panel
       new Setting(collectionContainer)

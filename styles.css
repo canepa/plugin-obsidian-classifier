@@ -140,6 +140,15 @@
   padding: 4px 0 0;
 }
 
+/* Keep selected textarea controls compact (Include folders, Additional tags/stopwords)
+   Override Obsidian modal default: .modal-container .modal-content textarea { height: 18rem !important; }
+*/
+.modal-container .modal-content .auto-tagger-compact-textarea-setting textarea:not(.rename-textarea) {
+  min-height: 42px !important;
+  height: 42px !important;
+  max-height: 42px !important;
+}
+
 .auto-tagger-warning {
   padding: 10px;
   margin-bottom: 10px;
