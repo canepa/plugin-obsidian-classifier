@@ -1,24 +1,70 @@
 # Auto Tagger for Obsidian
 
-![Version](https://img.shields.io/badge/version-2.0.13-blue)
+![Version](https://img.shields.io/badge/version-2.0.14-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
-Automatically suggest and apply tags to your notes using semantic classifiers with advanced filtering. Create specialized collections for different note types, each with its own training scope and tag vocabulary.
+Suggest and apply tags across multiple note collections using learned classifiers or static dictionaries. Auto Tagger helps you keep large vaults organized without manually maintaining every tag by hand.
+
+Auto Tagger is designed for vaults where one tagging strategy is not enough. You can create separate collections for work notes, research, writing, projects, clipped articles, or any other area of your vault, and each collection can use its own scope, thresholds, filters, and dictionary source.
+
+## Why Auto Tagger
+
+- Keep different parts of the vault separated with independent tagging logic
+- Train on your existing notes when you already have a good tag history
+- Use static dictionaries when you want curated, predictable tag suggestions
+- Merge suggestions from multiple collections when a note belongs to more than one context
+- Clean up blacklisted tags automatically during suggestion and batch operations
+
+## Good Fit For
+
+- Knowledge management vaults with multiple domains or workflows
+- Article clipping and reading pipelines
+- Work and personal vaults that need different tag vocabularies
+- Teams or repeatable systems that benefit from shared JSON dictionaries
+- Users migrating from manual tagging to assisted tagging
+
+## Screenshots
+
+### Overview
+
+![Auto Tagger overview](images/auto-tagger-overview.png)
+
+Organize tags by collection.
+
+### Collections And Training
+
+![Auto Tagger collections and training](images/auto-tagger-collections.png)
+
+Use Basic or Advanced classifiers, tune thresholds, and merge suggestions across collections.
+
+### Static Dictionary Mode
+
+![Auto Tagger static dictionary mode](images/auto-tagger-static-dictionary.png)
+
+Load local or remote JSON dictionaries, add custom tags, and keep a built-in fallback snapshot.
 
 ## ✨ Features
 
-- **🗂️ Collection-Based Organization** - Multiple classifiers, each trained on different note collections
-- **🤖 Dual Classifier Types** - Choose between Basic (fast, simple) or Advanced (enhanced filtering, semantic understanding)
-- **🎯 Smart Filtering** - Advanced classifier uses similarity + distinctive word overlap for higher precision
-- **🔄 Multi-Classifier Aggregation** - Combines suggestions from all applicable collections
-- **📚 Static Dictionary Mode** - Use local/remote JSON dictionaries without classifier training
-- **🌐 Dictionary Sources** - Load from vault file, local filesystem file (desktop), or URL and save locally
-- **📊 Detailed Statistics** - View comprehensive classifier stats (vocabulary size, top tags, training date)
-- **⚙️ Flexible Configuration** - Per-collection scope, thresholds, whitelist/blacklist
-- **🚫 Duplicate Prevention** - Never suggests tags already in your note
-- **🧹 Auto-Cleanup** - Blacklisted tags are automatically removed from notes when processed- **🗑️ Tag Removal** - Remove all tags from a collection across files in scope- **� Batch Summaries** - Detailed reports showing added/removed tags for each file
-- **�🐛 Debug Mode** - Optional detailed logging for troubleshooting and optimization
-- **🎨 Clean Interface** - Interactive modal showing suggestions with collection sources
+- **Collection-based organization** - Keep multiple independent classifiers, each trained on a different slice of the vault.
+- **Dual classifier types** - Choose between Basic for broader suggestions or Advanced for stricter, higher-precision matching.
+- **Static dictionary mode** - Skip training entirely and match notes against curated JSON dictionaries.
+- **Flexible dictionary sources** - Load dictionaries from the vault, desktop filesystem, or remote URL.
+- **Embedded dictionary snapshot** - Imported dictionary content is preserved in settings as a fallback if the source file moves.
+- **Smart filtering** - Control suggestions with whitelist, blacklist, thresholds, maximum tags, and folder scopes.
+- **Multi-collection aggregation** - Merge the best suggestions from all applicable collections.
+- **Duplicate prevention** - Never suggest tags already present in the note.
+- **Automatic cleanup** - Remove blacklisted tags during processing and batch operations.
+- **Batch summaries** - Review detailed reports of added and removed tags across files.
+- **Debug and statistics tools** - Inspect training size, top tags, vocabulary, and classifier behavior.
+- **Interactive settings UI** - Configure collections, dictionaries, and filters directly inside Obsidian.
+
+## How It Helps
+
+- Turn existing tagged notes into reusable tagging behavior.
+- Standardize tag vocabularies across recurring workflows.
+- Reduce noisy or generic tags with stricter per-collection rules.
+- Speed up review of inbox, clipping, project, and research notes.
+- Keep manual tagging available while reducing repetitive work.
 
 ## 📦 Installation
 

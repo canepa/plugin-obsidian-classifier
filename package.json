@@ -1,6 +1,6 @@
 {
   "name": "auto-tagger",
-  "version": "2.0.13",
+  "version": "2.0.14",
   "description": "Multi-collection semantic tag suggestions with embedding-based classifiers",
   "main": "main.js",
   "scripts": {
