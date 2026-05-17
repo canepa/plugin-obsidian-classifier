@@ -10,9 +10,10 @@ interface LoadedDictionary {
   stopwords: string[];
   blacklist: string[];
   microToMacros: Record<string, string[]>;
+  aliasToCanonical: Record<string, string>;
 }
 
-const EMPTY_DICTIONARY: LoadedDictionary = { tags: [], stopwords: [], blacklist: [], microToMacros: {} };
+const EMPTY_DICTIONARY: LoadedDictionary = { tags: [], stopwords: [], blacklist: [], microToMacros: {}, aliasToCanonical: {} };
 
 export default class AutoTaggerPlugin extends Plugin {
   settings: AutoTaggerSettings;
@@ -210,7 +211,7 @@ export default class AutoTaggerPlugin extends Plugin {
         const frontmatter = parseYaml(match[1]) || {};
         return { frontmatter, content: match[2], raw };
         } catch {
-          return { frontmatter: {}, content: raw, raw };
+          return { frontmatter: {}, content: match[2], raw };
         }
     }
     
@@ -261,16 +262,18 @@ export default class AutoTaggerPlugin extends Plugin {
         }
       }
 
-      // Expand aliases: add both the alias and the canonical tag into `tags`
+      // Expand aliases: alias words are added to tags[] for scoring purposes,
+      // but after matching they are resolved to their canonical (right-hand) name.
       const aliasTags: string[] = [];
+      const aliasToCanonical: Record<string, string> = {};
       if (parsed.aliases) {
         for (const [alias, canonical] of Object.entries(parsed.aliases)) {
           const aliasNorm = alias.trim().toLowerCase();
           const canonicalNorm = canonical.trim().toLowerCase();
-          aliasTags.push(aliasNorm);
-          aliasTags.push(canonicalNorm);
+          aliasTags.push(aliasNorm); // alias participates in scoring
+          aliasToCanonical[aliasNorm] = canonicalNorm; // but maps to canonical in output
 
-          // Inherit macro mapping from canonical tags to aliases
+          // Inherit macro mapping from canonical to alias
           const inherited = microToMacros[canonicalNorm];
           if (inherited && inherited.length > 0) {
             if (!microToMacros[aliasNorm]) microToMacros[aliasNorm] = [];
@@ -289,6 +292,7 @@ export default class AutoTaggerPlugin extends Plugin {
         stopwords: normalise(parsed.stopwords),
         blacklist: normalise(parsed.blacklist),
         microToMacros,
+        aliasToCanonical,
       };
     } catch (err) {
       console.error(`[loadTagDictionary] Failed to parse JSON from "${source}":`, err);
@@ -431,10 +435,11 @@ export default class AutoTaggerPlugin extends Plugin {
         const occurrences = words.filter(w => {
           // Exact match
           if (w === tagWord) return true;
-          // Partial match (tag word is prefix or suffix)
-          if (w.includes(tagWord) || tagWord.includes(w)) return true;
-          // Stem-like matching: first 3+ chars match
-          if (tagWord.length >= 3 && w.length >= 3 && w.startsWith(tagWord.substring(0, 3))) return true;
+          // Partial match: only allowed for longer words to avoid "chat" hitting "chatgpt"
+          if (tagWord.length >= 5 && w.includes(tagWord)) return true;
+          if (w.length >= 5 && tagWord.includes(w)) return true;
+          // Stem-like matching: require at least 5-char prefix to avoid short-word collisions
+          if (tagWord.length >= 5 && w.length >= 5 && w.startsWith(tagWord.substring(0, 5))) return true;
           return false;
         }).length;
         
@@ -915,9 +920,12 @@ export default class AutoTaggerPlugin extends Plugin {
         );
         console.log(`[AUTO-TAGGER DEBUG] matchContentToTags returned ${matched.length} tags`);
 
-        const macroTags = this.promoteMacroTags(matched, dictionary, existingTags, 2);
+        // Resolve alias tags to their canonical names, then deduplicate
+        const resolved = [...new Set(matched.map(tag => dictionary.aliasToCanonical[tag] ?? tag))];
+
+        const macroTags = this.promoteMacroTags(resolved, dictionary, existingTags, 2);
         // Micro tags fill up to maxTags; macro tags are additive (not counted against the limit)
-        const merged = [...new Set([...matched.slice(0, collection.maxTags), ...macroTags])];
+        const merged = [...new Set([...resolved.slice(0, collection.maxTags), ...macroTags])];
 
         this.debug(`  - Static: matched ${merged.length} tags: ${merged.join(', ')}`);
 

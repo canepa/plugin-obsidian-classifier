@@ -1,6 +1,6 @@
 # Auto Tagger for Obsidian
 
-![Version](https://img.shields.io/badge/version-2.0.14-blue)
+![Version](https://img.shields.io/badge/version-2.0.15-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
 Suggest and apply tags across multiple note collections using learned classifiers or static dictionaries. Auto Tagger helps you keep large vaults organized without manually maintaining every tag by hand.
@@ -43,11 +43,54 @@ Use Basic or Advanced classifiers, tune thresholds, and merge suggestions across
 
 Load local or remote JSON dictionaries, add custom tags, and keep a built-in fallback snapshot.
 
+#### Dictionary JSON Format
+
+Dictionaries are plain JSON files with the following fields:
+
+```jsonc
+{
+  // Required — list of tags the classifier can suggest
+  "tags": ["javascript", "typescript", "python", "llm", "claude"],
+
+  // Words ignored during content matching (common English words, platform noise, etc.)
+  "stopwords": ["the", "and", "with"],
+
+  // Tags that are never suggested and are automatically removed from notes
+  "blacklist": ["draft", "todo"],
+
+  // Alias → canonical mapping.
+  // The alias word is matched against content, but the canonical name appears in output.
+  // Example: content containing "anthropic" will produce the tag "claude".
+  "aliases": {
+    "anthropic": "claude",
+    "gpt-4": "chatgpt",
+    "openai": "chatgpt"
+  },
+
+  // Macro groups: macro name → list of micro tags that belong to it.
+  // When any micro tag is matched, its parent macro tag is added automatically
+  // as a bonus (extra) tag that does not count against the per-note tag limit.
+  "macros": {
+    "llm": ["claude", "chatgpt", "llm", "prompt-engineering", "embeddings"],
+    "programming": ["javascript", "typescript", "python", "react"]
+  }
+}
+```
+
+**Two-pass matching** — Static mode runs in two passes:
+1. **Micro tags** — content is scored against all tags in the dictionary (up to `maxTags` results).
+2. **Macro tags** — matched micro tags are looked up in macro groups; parent macro names are appended as extra tags.
+
+This means a note mentioning "Claude" gets both `claude` and `llm` without the macro consuming one of the regular tag slots.
+
 ## ✨ Features
 
 - **Collection-based organization** - Keep multiple independent classifiers, each trained on a different slice of the vault.
 - **Dual classifier types** - Choose between Basic for broader suggestions or Advanced for stricter, higher-precision matching.
 - **Static dictionary mode** - Skip training entirely and match notes against curated JSON dictionaries.
+- **Macro tag promotion** - Define macro groups in the dictionary; when a micro tag matches, its parent macro tag is automatically added as a bonus tag (does not count against the tag limit).
+- **Alias resolution** - Map surface forms to canonical tags (e.g. `"anthropic" → "claude"`); the alias word scores against content but the canonical name appears in the output.
+- **Front-matter exclusion** - Only the note body is used for matching; YAML front matter is never fed to the classifier.
 - **Flexible dictionary sources** - Load dictionaries from the vault, desktop filesystem, or remote URL.
 - **Embedded dictionary snapshot** - Imported dictionary content is preserved in settings as a fallback if the source file moves.
 - **Smart filtering** - Control suggestions with whitelist, blacklist, thresholds, maximum tags, and folder scopes.

@@ -254,13 +254,11 @@
     "itinerary",
     "passport",
     "visa",
-    "travel-insurance",
     "luggage",
     "plumber",
     "electrician",
     "hvac-technician",
     "contractor",
-    "handyman",
     "appliance-repair",
     "boiler",
     "heating",
@@ -284,7 +282,6 @@
     "gutter-cleaning",
     "pest-control",
     "exterminator",
-    "passport",
     "drivers-license",
     "social-security-number",
     "birth-certificate",
@@ -355,7 +352,6 @@
     "lists",
     "reminder",
     "reminders",
-    "appointment",
     "schedule",
     "calendar",
     "draft",
@@ -558,12 +554,20 @@
     "housing": [
       "rent",
       "lease",
+      "rental-agreement",
       "landlord",
       "tenant",
       "moving",
       "mortgage",
       "property-purchase",
-      "property-sale"
+      "property-sale",
+      "security-deposit",
+      "rent-payment",
+      "lease-renewal",
+      "real-estate-agent",
+      "notary",
+      "title-deed",
+      "sublet"
     ],
     "utilities": [
       "utility-bill",
@@ -573,24 +577,42 @@
       "internet",
       "phone-bill",
       "autopay",
-      "direct-debit"
+      "direct-debit",
+      "electricity-bill",
+      "gas-bill",
+      "water-bill",
+      "energy-tariff",
+      "switch-supplier",
+      "bill-due",
+      "smart-meter",
+      "streaming-subscription"
     ],
     "home-services": [
       "housekeeper",
       "cleaner",
+      "cleaning-service",
       "babysitter",
       "nanny",
+      "au-pair",
       "gardener",
       "dog-walker",
-      "handyman"
+      "handyman",
+      "domestic-help"
     ],
     "condominium": [
       "condominium",
       "hoa",
+      "homeowners-association",
       "strata",
       "service-charge",
       "maintenance-fee",
-      "building-manager"
+      "building-manager",
+      "common-area",
+      "neighbor",
+      "board-meeting",
+      "noise-complaint",
+      "property-manager",
+      "bylaws"
     ],
     "health": [
       "doctor",
@@ -599,7 +621,16 @@
       "pharmacy",
       "hospital",
       "emergency-room",
-      "health-insurance"
+      "health-insurance",
+      "dentist",
+      "vaccination",
+      "blood-test",
+      "specialist",
+      "health-records",
+      "copay",
+      "deductible",
+      "urgent-care",
+      "insurance-claim"
     ],
     "vehicle": [
       "car",
@@ -608,7 +639,14 @@
       "registration-renewal",
       "parking",
       "fuel",
-      "roadside-assistance"
+      "roadside-assistance",
+      "oil-change",
+      "mot",
+      "vehicle-inspection",
+      "mechanic",
+      "electric-vehicle",
+      "car-insurance",
+      "traffic-fine"
     ],
     "insurance": [
       "home-insurance",
@@ -617,7 +655,14 @@
       "health-insurance",
       "life-insurance",
       "claim",
-      "premium"
+      "premium",
+      "travel-insurance",
+      "pet-insurance",
+      "dental-insurance",
+      "vision-insurance",
+      "coverage",
+      "no-claims-bonus",
+      "renewal"
     ],
     "finance": [
       "checking-account",
@@ -627,7 +672,15 @@
       "tax-return",
       "income-tax",
       "property-tax",
-      "accountant"
+      "accountant",
+      "bank-transfer",
+      "credit-score",
+      "tax-refund",
+      "salary",
+      "direct-deposit",
+      "tax-deduction",
+      "interest-rate",
+      "vat"
     ],
     "family-school": [
       "school",
@@ -635,23 +688,43 @@
       "homework",
       "parent-teacher-meeting",
       "tuition",
-      "school-bus"
+      "school-bus",
+      "preschool",
+      "summer-camp",
+      "after-school-program",
+      "field-trip",
+      "school-lunch",
+      "textbook",
+      "report-card"
     ],
     "pets": [
       "pet",
       "vet",
       "pet-vaccination",
       "microchip",
-      "pet-insurance"
+      "pet-insurance",
+      "veterinarian",
+      "vet-appointment",
+      "pet-grooming",
+      "pet-food",
+      "kennel",
+      "boarding",
+      "deworming"
     ],
     "travel": [
-      "travel",
+      "vacation",
+      "trip",
       "flight",
       "hotel",
       "reservation",
       "passport",
       "visa",
-      "travel-insurance"
+      "travel-insurance",
+      "airbnb",
+      "booking",
+      "itinerary",
+      "airline",
+      "luggage"
     ],
     "home-maintenance": [
       "plumber",
@@ -660,7 +733,13 @@
       "heating",
       "air-conditioning",
       "renovation",
-      "pest-control"
+      "pest-control",
+      "appliance-repair",
+      "hvac-technician",
+      "water-heater",
+      "fridge",
+      "washing-machine",
+      "contractor"
     ],
     "documents": [
       "passport",
@@ -668,7 +747,11 @@
       "drivers-license",
       "birth-certificate",
       "marriage-certificate",
-      "social-security-number"
+      "social-security-number",
+      "will",
+      "power-of-attorney",
+      "id-renewal",
+      "visa"
     ],
     "subscriptions": [
       "subscription",
@@ -676,16 +759,32 @@
       "netflix",
       "spotify",
       "amazon-prime",
-      "disney-plus"
+      "disney-plus",
+      "cloud-storage",
+      "gym-membership",
+      "magazine-subscription",
+      "newspaper-subscription"
     ],
     "emergencies": [
       "emergency",
-      "first-aid-kit",
+      "first-aid",
       "smoke-detector",
       "carbon-monoxide-detector",
       "roadside-assistance",
-      "urgent-care"
+      "urgent-care",
+      "emergency-room",
+      "flood",
+      "fire",
+      "evacuation"
+    ],
+    "retirement-savings": [
+      "retirement",
+      "401k",
+      "ira",
+      "pension",
+      "social-security",
+      "retirement-account"
     ]
   },
-  "updatedAt": "2026-05-16"
+  "updatedAt": "2026-05-17"
 }

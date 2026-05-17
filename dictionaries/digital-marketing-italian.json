@@ -435,10 +435,10 @@
     "così", "cioè", "ovvero", "oppure", "dunque", "quindi", "perciò", "allora",
     "comunque", "magari", "infatti", "invece", "però", "tuttavia",
     "sebbene", "benché", "malgrado", "nonostante", "affinché", "purché", "qualora",
-    "molto", "poco", "tanto", "tale", "tali", "certo", "certa", "certi", "certe",
+    "tale", "tali", "certo", "certa", "certi", "certe",
     "ciò", "ecco", "boh", "beh", "dai", "via",
     "presso", "oltre", "verso", "lungo", "contro", "secondo", "mediante", "tramite",
-    "circa", "salvo", "tranne", "eccetto"
+    "salvo", "tranne", "eccetto"
   ],
   "blacklist": [
     "nota",
@@ -543,12 +543,12 @@
     "consent-mode-v2": "consent-management",
     "consenso-cookie": "consent-management",
     "informativa-cookie": "consent-management",
-    "first-input-delay": "fid",
+    "fid": "inp",
+    "first-input-delay": "inp",
     "interaction-to-next-paint": "inp",
     "largest-contentful-paint": "lcp",
     "cumulative-layout-shift": "cls",
     "schema-org": "schema-markup",
-    "rich-snippet": "rich-snippet",
     "rich-snippets": "rich-snippet",
     "featured-snippet": "featured-snippet",
     "paa": "people-also-ask",
@@ -569,12 +569,10 @@
     "ai-content": "ai-marketing",
     "ai-copy": "ai-marketing",
     "atf": "above-the-fold",
-    "call-to-action": "cta",
     "chief-marketing-officer": "cmo",
     "head-of-marketing": "marketing-manager",
     "responsabile-marketing": "marketing-manager",
     "direttore-marketing": "marketing-manager",
-    "digital-pr": "digital-pr",
     "pr-digitali": "digital-pr",
     "scrittura-seo": "copywriting",
     "copy-seo": "copywriting"
@@ -590,7 +588,14 @@
       "keyword-research",
       "backlink",
       "schema-markup",
-      "core-web-vitals"
+      "core-web-vitals",
+      "eeat",
+      "helpful-content",
+      "intento-di-ricerca",
+      "serp",
+      "featured-snippet",
+      "link-building",
+      "crawl-budget"
     ],
     "adv": [
       "sem",
@@ -602,7 +607,15 @@
       "programmatic",
       "retargeting",
       "cpc",
-      "roas"
+      "roas",
+      "facebook-ads",
+      "youtube-ads",
+      "strategia-offerta",
+      "smart-bidding",
+      "attribuzione",
+      "cpm",
+      "ctr",
+      "performance-max"
     ],
     "content-marketing": [
       "content-marketing",
@@ -610,7 +623,15 @@
       "copywriting",
       "blogging",
       "piano-editoriale",
-      "video-marketing"
+      "video-marketing",
+      "calendario-editoriale",
+      "contenuto-evergreen",
+      "riuso-contenuti",
+      "thought-leadership",
+      "ugc",
+      "storytelling",
+      "ebook",
+      "white-paper"
     ],
     "email-marketing": [
       "email-marketing",
@@ -618,7 +639,14 @@
       "drip-campaign",
       "marketing-automation",
       "segmentazione",
-      "consegnabilità"
+      "consegnabilità",
+      "tasso-apertura",
+      "pulizia-lista",
+      "double-opt-in",
+      "personalizzazione",
+      "email-lifecycle",
+      "mailchimp",
+      "klaviyo"
     ],
     "social-media": [
       "social-media-marketing",
@@ -628,7 +656,15 @@
       "facebook",
       "tiktok",
       "youtube",
-      "influencer-marketing"
+      "influencer-marketing",
+      "reels",
+      "storie",
+      "engagement-rate",
+      "social-listening",
+      "hashtag",
+      "community-management",
+      "creator-economy",
+      "micro-influencer"
     ],
     "analytics": [
       "web-analytics",
@@ -638,23 +674,42 @@
       "google-tag-manager",
       "attribuzione",
       "tracciamento-conversioni",
-      "dashboard"
+      "dashboard",
+      "analisi-coorte",
+      "analisi-funnel",
+      "frequenza-rimbalzo",
+      "mixpanel",
+      "amplitude",
+      "kpi",
+      "metrica-nord"
     ],
     "cro": [
       "cro",
       "ottimizzazione-conversioni",
-      "ab-testing",
+      "ab-test",
       "landing-page",
-      "funnel",
-      "heatmap"
+      "analisi-funnel",
+      "heatmap",
+      "test-multivariato",
+      "mappa-calore",
+      "scroll-map",
+      "copy-conversione",
+      "ottimizzazione-checkout",
+      "above-the-fold"
     ],
     "branding": [
       "branding",
-      "brand-strategy",
+      "strategia-di-marca",
       "brand-awareness",
       "posizionamento",
-      "tone-of-voice",
-      "storytelling"
+      "tono-di-voce",
+      "storytelling",
+      "identità-di-marca",
+      "identità-visiva",
+      "voce-del-brand",
+      "proposta-di-valore",
+      "brand-equity",
+      "notorietà-di-marca"
     ],
     "ecommerce": [
       "ecommerce",
@@ -662,7 +717,13 @@
       "woocommerce",
       "adobe-commerce",
       "shopping-ads",
-      "carrello-abbandonato"
+      "carrello-abbandonato",
+      "feed-prodotto",
+      "merchandising",
+      "cross-selling",
+      "up-selling",
+      "google-merchant-center",
+      "scheda-prodotto"
     ],
     "ai-marketing": [
       "aeo",
@@ -671,8 +732,50 @@
       "ai-overview",
       "sge",
       "ai-marketing",
-      "ai-generativa"
+      "ai-generativa",
+      "intelligenza-artificiale",
+      "prompt-engineering",
+      "chatgpt",
+      "claude"
+    ],
+    "crm-lead-gen": [
+      "crm",
+      "salesforce",
+      "hubspot",
+      "hubspot-crm",
+      "lead-scoring",
+      "lead-nurturing",
+      "mql",
+      "sql",
+      "demand-generation",
+      "lead-generation",
+      "account-based-marketing"
+    ],
+    "privacy-compliance": [
+      "gdpr",
+      "garante-privacy",
+      "cookie-banner",
+      "consent-management",
+      "dati-prima-parte",
+      "cookie-terze-parti",
+      "cookieless",
+      "dma",
+      "dsa",
+      "ai-act",
+      "iab-tcf"
+    ],
+    "strategy": [
+      "marketing-strategy",
+      "strategia-marketing",
+      "go-to-market",
+      "ricerca-di-mercato",
+      "analisi-concorrenza",
+      "buyer-persona",
+      "funnel",
+      "product-led-growth",
+      "proposta-di-valore",
+      "customer-journey"
     ]
   },
-  "updatedAt": "2026-05-16"
+  "updatedAt": "2026-05-17"
 }

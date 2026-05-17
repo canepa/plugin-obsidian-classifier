@@ -268,7 +268,6 @@
     "modello-730",
     "modello-redditi",
     "imu",
-    "tari",
     "tasi",
     "irpef",
     "irap",
@@ -412,7 +411,6 @@
     "112",
     "113",
     "115",
-    "118",
     "vigili-del-fuoco",
     "carabinieri",
     "polizia",
@@ -483,7 +481,7 @@
     "ciò", "ecco", "boh", "beh", "dai", "via",
     "presso", "oltre", "verso", "lungo", "contro", "secondo", "mediante", "tramite",
     "salvo", "tranne", "eccetto",
-    "sì", "no", "ok", "bene", "male", "forse", "circa", "intorno"
+    "sì", "no", "ok", "bene", "male", "forse", "intorno"
   ],
   "blacklist": [
     "nota",
@@ -638,7 +636,6 @@
     "estratto": "estratto-conto",
     "app-bancaria": "app-banca",
     "internet-banking": "home-banking",
-    "modello-730": "modello-730",
     "730": "modello-730",
     "dichiarazione": "dichiarazione-redditi",
     "imu-prima-casa": "imu",
@@ -726,12 +723,21 @@
     "casa": [
       "affitto",
       "locazione",
+      "contratto-di-locazione",
       "locatore",
       "conduttore",
       "trasloco",
       "mutuo",
       "compravendita",
-      "rogito"
+      "rogito",
+      "deposito-cauzionale",
+      "canone-affitto",
+      "agente-immobiliare",
+      "notaio",
+      "preliminare",
+      "ape",
+      "sfratto",
+      "proroga-contratto"
     ],
     "utenze": [
       "utenze",
@@ -741,7 +747,17 @@
       "acqua",
       "internet",
       "telefono",
-      "addebito-diretto"
+      "addebito-diretto",
+      "tari",
+      "rid",
+      "sdd",
+      "pagopa",
+      "f24",
+      "cambio-fornitore",
+      "autolettura",
+      "contatore",
+      "tariffa-luce",
+      "tariffa-gas"
     ],
     "servizi-domestici": [
       "colf",
@@ -749,7 +765,12 @@
       "baby-sitter",
       "tata",
       "giardiniere",
-      "tuttofare"
+      "tuttofare",
+      "dog-sitter",
+      "governante",
+      "contratto-colf",
+      "inps-colf",
+      "busta-paga-colf"
     ],
     "condominio": [
       "condominio",
@@ -757,7 +778,15 @@
       "assemblea-condominiale",
       "millesimi",
       "spese-condominiali",
-      "manutenzione-straordinaria"
+      "manutenzione-straordinaria",
+      "verbale-assemblea",
+      "parti-comuni",
+      "regolamento-condominiale",
+      "mora",
+      "vicini",
+      "lamentela-rumore",
+      "bonus-casa",
+      "ecobonus"
     ],
     "salute": [
       "salute",
@@ -767,7 +796,18 @@
       "ricetta-medica",
       "farmacia",
       "ospedale",
-      "pronto-soccorso"
+      "pronto-soccorso",
+      "farmaco",
+      "dentista",
+      "vaccino",
+      "esami-del-sangue",
+      "prenotazione-visita",
+      "cup",
+      "ticket-sanitario",
+      "esenzione-ticket",
+      "tessera-sanitaria",
+      "118",
+      "guardia-medica"
     ],
     "auto": [
       "auto",
@@ -777,7 +817,17 @@
       "assicurazione-auto",
       "tagliando",
       "carburante",
-      "sinistro"
+      "sinistro",
+      "manutenzione-auto",
+      "gomme",
+      "multa",
+      "ztl",
+      "telepass",
+      "meccanico",
+      "carrozziere",
+      "passaggio-di-proprietà",
+      "soccorso-stradale",
+      "patente"
     ],
     "assicurazioni": [
       "assicurazioni",
@@ -786,7 +836,16 @@
       "polizza-vita",
       "polizza-viaggio",
       "rinnovo-polizza",
-      "franchigia"
+      "franchigia",
+      "polizza-infortuni",
+      "polizza-malattia",
+      "polizza-cane",
+      "rca",
+      "kasko",
+      "premio-assicurativo",
+      "indennizzo",
+      "perito",
+      "massimale"
     ],
     "finanze": [
       "conto-corrente",
@@ -796,7 +855,16 @@
       "dichiarazione-redditi",
       "imu",
       "tari",
-      "commercialista"
+      "commercialista",
+      "bonifico",
+      "irpef",
+      "iva",
+      "isee",
+      "agenzia-entrate",
+      "fisco",
+      "fattura-elettronica",
+      "detrazione",
+      "scadenze-fiscali"
     ],
     "famiglia-scuola": [
       "asilo-nido",
@@ -805,24 +873,41 @@
       "scuola-media",
       "scuola-superiore",
       "università",
-      "mensa-scolastica"
+      "mensa-scolastica",
+      "retta",
+      "scuolabus",
+      "libri-di-testo",
+      "pagella",
+      "maturità",
+      "borsa-di-studio"
     ],
     "animali": [
-      "animali",
       "veterinario",
       "vaccinazione-cane",
       "vaccinazione-gatto",
       "toelettatura",
-      "assicurazione-animali"
+      "polizza-cane",
+      "microchip",
+      "pensione-cani",
+      "cibo-cane",
+      "cibo-gatto",
+      "sverminazione"
     ],
     "viaggi": [
       "vacanze",
       "volo",
       "hotel",
       "treno",
-      "prenotazione",
+      "prenotazione-viaggio",
       "passaporto",
-      "assicurazione-viaggio"
+      "assicurazione-viaggio",
+      "aereo",
+      "trenitalia",
+      "airbnb",
+      "agriturismo",
+      "valigia",
+      "visto",
+      "b-and-b"
     ],
     "manutenzione-casa": [
       "ristrutturazione",
@@ -830,7 +915,16 @@
       "tecnico-caldaia",
       "condizionatore",
       "elettricista",
-      "idraulico"
+      "idraulico",
+      "ristrutturazione-casa",
+      "fabbro",
+      "falegname",
+      "imbianchino",
+      "muratore",
+      "caldaia",
+      "lavatrice",
+      "frigorifero",
+      "bonus-ristrutturazione"
     ],
     "documenti": [
       "carta-identità",
@@ -839,7 +933,15 @@
       "pec",
       "codice-fiscale",
       "partita-iva",
-      "raccomandata-ar"
+      "raccomandata-ar",
+      "passaporto",
+      "tessera-elettorale",
+      "atto-di-nascita",
+      "atto-di-matrimonio",
+      "certificato-residenza",
+      "anagrafe",
+      "firma-digitale",
+      "passaporto-italiano"
     ],
     "abbonamenti": [
       "abbonamento",
@@ -848,7 +950,8 @@
       "amazon-prime",
       "disney-plus",
       "canone-rai",
-      "palestra"
+      "palestra",
+      "abbonamento-treno"
     ],
     "emergenze": [
       "112",
@@ -856,8 +959,26 @@
       "115",
       "kit-emergenza",
       "perdita-gas",
-      "pronto-soccorso"
+      "pronto-soccorso",
+      "113",
+      "vigili-del-fuoco",
+      "carabinieri",
+      "polizia",
+      "ambulanza",
+      "blackout",
+      "allagamento",
+      "primo-soccorso"
+    ],
+    "previdenza": [
+      "inps",
+      "contributi",
+      "pensione",
+      "fondo-pensione",
+      "previdenza-complementare",
+      "tfr",
+      "naspi",
+      "riscatto-laurea"
     ]
   },
-  "updatedAt": "2026-05-16"
+  "updatedAt": "2026-05-17"
 }

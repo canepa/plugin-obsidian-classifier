@@ -50,7 +50,6 @@
     "page-speed",
     "lcp",
     "cls",
-    "fid",
     "inp",
     "mobile-first",
     "amp",
@@ -455,7 +454,6 @@
     "review",
     "feedback",
     "approval",
-    "draft",
     "version",
     "update",
     "follow-up",
@@ -493,8 +491,6 @@
     "marketing-qualified-lead": "mql",
     "sales-qualified-lead": "sql",
     "customer-relationship-management": "crm",
-    "account-based-marketing": "abm",
-    "product-led-growth": "product-led-growth",
     "plg": "product-led-growth",
     "go-to-market-strategy": "go-to-market",
     "gtm-strategy": "go-to-market",
@@ -510,8 +506,6 @@
     "yt": "youtube",
     "li": "linkedin",
     "linkedin-marketing": "linkedin",
-    "answer-engine-optimization": "aeo",
-    "generative-engine-optimization": "geo",
     "search-generative-experience": "sge",
     "ai-overview": "ai-overviews",
     "google-business-profile": "local-seo",
@@ -522,10 +516,8 @@
     "california-consumer-privacy-act": "ccpa",
     "digital-markets-act": "dma",
     "digital-services-act": "dsa",
-    "user-generated-content": "ugc",
     "above-the-fold-section": "above-the-fold",
     "atf": "above-the-fold",
-    "call-to-action": "cta",
     "chief-marketing-officer": "cmo",
     "head-of-marketing": "marketing-manager",
     "ai-content": "ai-marketing",
@@ -535,7 +527,8 @@
     "p-max": "performance-max",
     "consent-mode": "consent-management",
     "consent-mode-v2": "consent-management",
-    "first-input-delay": "fid",
+    "fid": "inp",
+    "first-input-delay": "inp",
     "interaction-to-next-paint": "inp",
     "largest-contentful-paint": "lcp",
     "cumulative-layout-shift": "cls",
@@ -561,7 +554,14 @@
       "keyword-research",
       "backlinks",
       "schema-markup",
-      "core-web-vitals"
+      "core-web-vitals",
+      "eeat",
+      "helpful-content",
+      "search-intent",
+      "serp",
+      "featured-snippets",
+      "link-building",
+      "crawl-budget"
     ],
     "paid-ads": [
       "sem",
@@ -573,7 +573,15 @@
       "programmatic",
       "retargeting",
       "cpc",
-      "roas"
+      "roas",
+      "facebook-ads",
+      "youtube-ads",
+      "bid-strategy",
+      "smart-bidding",
+      "attribution",
+      "cpm",
+      "ctr",
+      "performance-max"
     ],
     "content-marketing": [
       "content-marketing",
@@ -582,7 +590,15 @@
       "blogging",
       "pillar-page",
       "topic-cluster",
-      "video-marketing"
+      "video-marketing",
+      "content-calendar",
+      "evergreen-content",
+      "content-repurposing",
+      "thought-leadership",
+      "ugc",
+      "storytelling",
+      "ebook",
+      "white-paper"
     ],
     "email-marketing": [
       "email-marketing",
@@ -590,7 +606,14 @@
       "drip-campaign",
       "marketing-automation",
       "segmentation",
-      "deliverability"
+      "deliverability",
+      "open-rate",
+      "list-hygiene",
+      "double-opt-in",
+      "personalization",
+      "lifecycle-email",
+      "mailchimp",
+      "klaviyo"
     ],
     "social-media": [
       "social-media-marketing",
@@ -600,7 +623,15 @@
       "facebook",
       "tiktok",
       "youtube",
-      "influencer-marketing"
+      "influencer-marketing",
+      "reels",
+      "stories",
+      "engagement-rate",
+      "social-listening",
+      "hashtag",
+      "community-management",
+      "creator-economy",
+      "micro-influencer"
     ],
     "analytics": [
       "web-analytics",
@@ -610,24 +641,42 @@
       "google-tag-manager",
       "attribution",
       "conversion-tracking",
-      "dashboard"
+      "dashboard",
+      "cohort-analysis",
+      "funnel-analysis",
+      "retention",
+      "bounce-rate",
+      "mixpanel",
+      "amplitude",
+      "kpi",
+      "north-star-metric"
     ],
     "cro": [
       "cro",
       "conversion-rate-optimization",
       "ab-testing",
       "landing-page",
-      "funnel",
+      "funnel-analysis",
       "heatmap",
-      "session-recording"
+      "multivariate-testing",
+      "scroll-map",
+      "conversion-copy",
+      "checkout-optimization",
+      "above-the-fold"
     ],
     "branding": [
       "branding",
       "brand-strategy",
       "brand-awareness",
-      "positioning",
+      "brand-positioning",
       "tone-of-voice",
-      "storytelling"
+      "storytelling",
+      "brand-identity",
+      "visual-identity",
+      "brand-voice",
+      "value-proposition",
+      "brand-equity",
+      "brand-guidelines"
     ],
     "ecommerce": [
       "ecommerce",
@@ -635,7 +684,13 @@
       "woocommerce",
       "adobe-commerce",
       "shopping-ads",
-      "cart-abandonment"
+      "cart-abandonment",
+      "product-feed",
+      "merchandising",
+      "cross-sell",
+      "upsell",
+      "google-merchant-center",
+      "product-detail-page"
     ],
     "ai-marketing": [
       "aeo",
@@ -643,8 +698,51 @@
       "llm-seo",
       "ai-overviews",
       "sge",
-      "ai-marketing"
+      "ai-marketing",
+      "generative-ai",
+      "prompt-engineering",
+      "chatgpt",
+      "claude",
+      "answer-engine-optimization"
+    ],
+    "crm-lead-gen": [
+      "crm",
+      "salesforce",
+      "hubspot",
+      "lead-scoring",
+      "lead-nurturing",
+      "mql",
+      "sql",
+      "demand-generation",
+      "account-based-marketing",
+      "lifecycle-stage"
+    ],
+    "privacy-compliance": [
+      "gdpr",
+      "ccpa",
+      "cookie-banner",
+      "consent-management",
+      "first-party-data",
+      "third-party-cookies",
+      "cookieless",
+      "dma",
+      "dsa",
+      "eu-ai-act",
+      "iab-tcf"
+    ],
+    "strategy": [
+      "marketing-strategy",
+      "go-to-market",
+      "market-research",
+      "competitive-analysis",
+      "buyer-persona",
+      "marketing-funnel",
+      "product-led-growth",
+      "brand-strategy",
+      "value-proposition",
+      "ideal-customer-profile",
+      "buyer-journey"
     ]
   },
-  "updatedAt": "2026-05-16"
+  "updatedAt": "2026-05-17"
 }

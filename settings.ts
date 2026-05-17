@@ -29,10 +29,9 @@ class ConfirmModal extends Modal {
       cls: 'mod-warning'
     });
     confirmButton.addEventListener('click', () => {
-      void (async () => {
-        await this.onConfirm();
-        this.close();
-      })();
+      confirmButton.disabled = true;
+      this.close();
+      void this.onConfirm();
     });
     
     const cancelButton = buttonContainer.createEl('button', { text: 'Cancel' });

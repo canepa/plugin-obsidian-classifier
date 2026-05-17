@@ -1,7 +1,7 @@
 {
   "id": "auto-tagger",
   "name": "Auto Tagger",
-  "version": "2.0.14",
+  "version": "2.0.15",
   "minAppVersion": "0.15.0",
   "description": "Multi-collection semantic tag suggestions with learning/static dictionary modes and advanced filtering.",
   "author": "Alessandro Canepa",
