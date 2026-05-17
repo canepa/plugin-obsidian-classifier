@@ -1,6 +1,6 @@
 # Auto Tagger for Obsidian
 
-![Version](https://img.shields.io/badge/version-2.0.15-blue)
+![Version](https://img.shields.io/badge/version-2.0.16-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
 Suggest and apply tags across multiple note collections using learned classifiers or static dictionaries. Auto Tagger helps you keep large vaults organized without manually maintaining every tag by hand.

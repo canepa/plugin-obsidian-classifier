@@ -1,6 +1,7 @@
 import { App, FuzzySuggestModal, Plugin, PluginSettingTab, Setting, Notice, Modal, TFile, requestUrl } from 'obsidian';
 import type { EmbeddingClassifierData, EmbeddingClassifier } from './embedding-classifier';
 import { readDictionaryRaw } from './dictionary-utils';
+import { BUNDLED_DICTIONARIES } from './bundled-dictionaries';
 
 /**
  * Confirmation modal for destructive actions
@@ -590,26 +591,44 @@ export class AutoTaggerSettingTab extends PluginSettingTab {
     const _isUrl = (s: string) => s.startsWith('http://') || s.startsWith('https://');
 
     if (collection.dictionaryMode === 'static') {
-      const examplesUrl = 'https://github.com/canepa/plugin-obsidian-classifier/tree/main/dictionaries';
       new Setting(collectionContainer)
-        .setName('Example dictionaries')
-        .setDesc('Download ready-to-use JSON dictionaries from the plugin repository')
-        .addButton(btn => btn
-          .setButtonText('Open on GitHub')
-          .onClick(() => {
-            window.open(examplesUrl, '_blank');
-          }));
+        .setName('Built-in example dictionaries')
+        .setDesc('Install a ready-to-use dictionary directly to your vault and use it for this collection')
+        .setHeading();
+      for (const dict of BUNDLED_DICTIONARIES) {
+        new Setting(collectionContainer)
+          .setName(dict.name)
+          .addButton(btn => btn
+            .setButtonText('Install to vault')
+            .onClick(async () => {
+              const destFolder = 'dictionaries';
+              const destPath = `${destFolder}/${dict.filename}`;
+              const content = JSON.stringify(dict.content, null, 2);
+              if (!this.app.vault.getFolderByPath(destFolder)) {
+                await this.app.vault.createFolder(destFolder);
+              }
+              const existing = this.app.vault.getFileByPath(destPath);
+              if (existing) {
+                await this.app.vault.modify(existing as TFile, content);
+              } else {
+                await this.app.vault.create(destPath, content);
+              }
+              collection.tagDictionaryPath = destPath;
+              await this._captureDictionarySnapshot(collection);
+              await this.plugin.saveSettings();
+              new Notice(`Dictionary installed: ${destPath}`);
+              this.display();
+            }));
+      }
     }
 
     if (!collection.tagDictionaryPath) {
       // ── CONFIGURE STATE: no dictionary set yet ──────────────────────────
 
       // Local file
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const isDesktop = !!(window as any).require;
-      const localSetting = new Setting(collectionContainer)
+      new Setting(collectionContainer)
         .setName('Local file')
-        .setDesc('Pick a .json or .md file from the vault, or enter an absolute path')
+        .setDesc('Pick a .json or .md file from the vault')
         .addText(text => {
           text.setPlaceholder('dictionaries/tags.json').onChange(async (value) => {
             const v = value.trim();
@@ -633,32 +652,6 @@ export class AutoTaggerSettingTab extends PluginSettingTab {
               this.display();
             }).open();
           }));
-
-      if (isDesktop) {
-        localSetting.addButton(btn => btn
-          .setButtonText('Browse filesystem')
-          .onClick(async () => {
-            try {
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              const { dialog } = (window as any).require('electron').remote
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                ?? (window as any).require('@electron/remote');
-              const result = await dialog.showOpenDialog({
-                title: 'Select dictionary file',
-                filters: [{ name: 'Dictionary', extensions: ['json', 'md'] }],
-                properties: ['openFile']
-              });
-              if (!result.canceled && result.filePaths.length > 0) {
-                collection.tagDictionaryPath = result.filePaths[0] as string;
-                await this._captureDictionarySnapshot(collection);
-                await this.plugin.saveSettings();
-                this.display();
-              }
-            } catch {
-              new Notice('Filesystem picker unavailable — enter the path manually');
-            }
-          }));
-      }
 
       // Remote URL import
       let _pendingUrl = '';

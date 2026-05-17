@@ -322,7 +322,7 @@ export default class AutoTaggerPlugin extends Plugin {
 
       const tags = parseLegacyDictionaryText(content);
       this.debug(`[loadTagDictionary] Legacy text: loaded ${tags.length} tags from ${source}`);
-      return { tags, stopwords: [], blacklist: [], microToMacros: {} };
+      return { tags, stopwords: [], blacklist: [], microToMacros: {}, aliasToCanonical: {} };
 
     } catch (error) {
       console.error(`[loadTagDictionary] Error loading dictionary from "${source}":`, error);
@@ -346,7 +346,7 @@ export default class AutoTaggerPlugin extends Plugin {
     }
 
     const tags = parseLegacyDictionaryText(trimmed);
-    return { tags, stopwords: [], blacklist: [], microToMacros: {} };
+    return { tags, stopwords: [], blacklist: [], microToMacros: {}, aliasToCanonical: {} };
   }
 
   private async loadTagDictionaryForCollection(collection: Collection): Promise<LoadedDictionary> {

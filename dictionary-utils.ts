@@ -4,10 +4,6 @@ export function isRemoteDictionarySource(source: string): boolean {
   return source.startsWith('http://') || source.startsWith('https://');
 }
 
-export function isAbsoluteDictionaryPath(source: string): boolean {
-  return /^[A-Za-z]:[\\/]/.test(source) || source.startsWith('/');
-}
-
 export function parseLegacyDictionaryText(content: string): string[] {
   return content
     .split('\n')
@@ -23,12 +19,6 @@ export async function readDictionaryRaw(app: App, source: string): Promise<strin
       throw new Error(`HTTP ${response.status}`);
     }
     return response.text;
-  }
-
-  if (isAbsoluteDictionaryPath(source)) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const fs = (window as any).require('fs') as typeof import('fs');
-    return fs.readFileSync(source, 'utf8');
   }
 
   const file = app.vault.getAbstractFileByPath(source);
