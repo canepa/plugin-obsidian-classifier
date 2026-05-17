@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "medium-english",
   "name": "Medium English",
   "description": "Comprehensive dictionary for Medium-style English content. Covers technology, programming, AI/ML, business, startup, productivity, design, writing, personal finance, health, career and lifestyle topics typical of the Medium platform.",
@@ -119,6 +119,11 @@
     "deep-learning",
     "neural-networks",
     "prompt-engineering",
+    "temperature",
+    "llm-temperature",
+    "token-sampling",
+    "softmax",
+    "logits",
     "fine-tuning",
     "retrieval-augmented-generation",
     "embeddings",
@@ -492,6 +497,13 @@
     "minute-read",
     "min-read",
     "audio-version",
+    "dall-e",
+    "dall-e-3",
+    "dalle",
+    "e-mail",
+    "e-commerce",
+    "command-r",
+    "command-r-plus",
     "listen",
     "share",
     "shares",
@@ -769,6 +781,129 @@
     "habits-of-mind": "habits",
     "good-habits": "habits",
     "daily-habits": "habits"
+  },
+  "macros": {
+    "llm": [
+      "llm",
+      "artificial-intelligence",
+      "generative-ai",
+      "prompt-engineering",
+      "temperature",
+      "llm-temperature",
+      "token-sampling",
+      "softmax",
+      "logits",
+      "chatgpt",
+      "claude",
+      "retrieval-augmented-generation",
+      "embeddings",
+      "vector-database",
+      "ai-agents"
+    ],
+    "programming": [
+      "programming",
+      "javascript",
+      "typescript",
+      "python",
+      "java",
+      "golang",
+      "rust",
+      "php",
+      "react",
+      "nodejs",
+      "frontend",
+      "backend",
+      "fullstack",
+      "rest-api",
+      "graphql",
+      "microservices"
+    ],
+    "data": [
+      "data-science",
+      "data-analysis",
+      "data-engineering",
+      "analytics",
+      "statistics",
+      "pandas",
+      "numpy",
+      "jupyter",
+      "etl"
+    ],
+    "business": [
+      "business",
+      "startup",
+      "entrepreneurship",
+      "saas",
+      "strategy",
+      "leadership",
+      "management",
+      "venture-capital"
+    ],
+    "marketing": [
+      "marketing",
+      "growth",
+      "seo",
+      "content-marketing",
+      "email-marketing",
+      "social-media-marketing",
+      "branding",
+      "copywriting"
+    ],
+    "design": [
+      "design",
+      "ux-design",
+      "ui-design",
+      "user-experience",
+      "user-interface",
+      "figma",
+      "prototyping",
+      "design-systems"
+    ],
+    "productivity": [
+      "productivity",
+      "time-management",
+      "deep-work",
+      "habits",
+      "goal-setting",
+      "okrs",
+      "self-improvement"
+    ],
+    "finance": [
+      "personal-finance",
+      "investing",
+      "stocks",
+      "trading",
+      "retirement",
+      "budgeting",
+      "financial-independence"
+    ],
+    "health": [
+      "health",
+      "fitness",
+      "nutrition",
+      "mental-health",
+      "sleep",
+      "stress-management",
+      "self-care"
+    ],
+    "career": [
+      "career",
+      "career-advice",
+      "job-search",
+      "interview",
+      "resume",
+      "networking",
+      "remote-work"
+    ],
+    "writing": [
+      "writing",
+      "blogging",
+      "content-creation",
+      "storytelling",
+      "creative-writing",
+      "journalism",
+      "newsletter"
+    ]
   },
   "updatedAt": "2026-05-16T20:00:00Z"
 }

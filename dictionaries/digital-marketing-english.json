@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "digital-marketing-english",
   "name": "Digital Marketing English",
   "description": "Comprehensive dictionary for a digital marketer's notes in English. Covers SEO, SEM/PPC, paid social, content marketing, email marketing, marketing automation, analytics, CRO, branding, ecommerce, MarTech, privacy and AI-driven marketing.",
@@ -549,6 +549,102 @@
     "online-store": "ecommerce",
     "magento-2": "adobe-commerce",
     "magento2": "adobe-commerce"
+  },
+  "macros": {
+    "seo": [
+      "seo",
+      "technical-seo",
+      "on-page-seo",
+      "off-page-seo",
+      "local-seo",
+      "international-seo",
+      "keyword-research",
+      "backlinks",
+      "schema-markup",
+      "core-web-vitals"
+    ],
+    "paid-ads": [
+      "sem",
+      "ppc",
+      "google-ads",
+      "meta-ads",
+      "linkedin-ads",
+      "tiktok-ads",
+      "programmatic",
+      "retargeting",
+      "cpc",
+      "roas"
+    ],
+    "content-marketing": [
+      "content-marketing",
+      "content-strategy",
+      "copywriting",
+      "blogging",
+      "pillar-page",
+      "topic-cluster",
+      "video-marketing"
+    ],
+    "email-marketing": [
+      "email-marketing",
+      "newsletter",
+      "drip-campaign",
+      "marketing-automation",
+      "segmentation",
+      "deliverability"
+    ],
+    "social-media": [
+      "social-media-marketing",
+      "organic-social",
+      "linkedin",
+      "instagram",
+      "facebook",
+      "tiktok",
+      "youtube",
+      "influencer-marketing"
+    ],
+    "analytics": [
+      "web-analytics",
+      "marketing-analytics",
+      "google-analytics",
+      "ga4",
+      "google-tag-manager",
+      "attribution",
+      "conversion-tracking",
+      "dashboard"
+    ],
+    "cro": [
+      "cro",
+      "conversion-rate-optimization",
+      "ab-testing",
+      "landing-page",
+      "funnel",
+      "heatmap",
+      "session-recording"
+    ],
+    "branding": [
+      "branding",
+      "brand-strategy",
+      "brand-awareness",
+      "positioning",
+      "tone-of-voice",
+      "storytelling"
+    ],
+    "ecommerce": [
+      "ecommerce",
+      "shopify",
+      "woocommerce",
+      "adobe-commerce",
+      "shopping-ads",
+      "cart-abandonment"
+    ],
+    "ai-marketing": [
+      "aeo",
+      "geo",
+      "llm-seo",
+      "ai-overviews",
+      "sge",
+      "ai-marketing"
+    ]
   },
   "updatedAt": "2026-05-16"
 }

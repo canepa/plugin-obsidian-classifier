@@ -13,7 +13,8 @@ esbuild.build({
   sourcemap: prod ? false : "inline",
   treeShaking: true,
   outfile: "main.js",
-  minify: prod,
+  minify: false,  // Keep console.log during development
+  pure: prod ? [] : undefined,
 }).catch((err) => {
   console.error(err);
   process.exit(1);

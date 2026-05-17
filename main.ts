@@ -9,9 +9,10 @@ interface LoadedDictionary {
   tags: string[];
   stopwords: string[];
   blacklist: string[];
+  microToMacros: Record<string, string[]>;
 }
 
-const EMPTY_DICTIONARY: LoadedDictionary = { tags: [], stopwords: [], blacklist: [] };
+const EMPTY_DICTIONARY: LoadedDictionary = { tags: [], stopwords: [], blacklist: [], microToMacros: {} };
 
 export default class AutoTaggerPlugin extends Plugin {
   settings: AutoTaggerSettings;
@@ -245,12 +246,40 @@ export default class AutoTaggerPlugin extends Plugin {
       const normalise = (arr?: string[]): string[] =>
         (arr ?? []).map(s => s.trim().toLowerCase()).filter(s => s.length > 0);
 
+      const microToMacros: Record<string, string[]> = {};
+      if (parsed.macros && typeof parsed.macros === 'object') {
+        for (const [macroRaw, microsRaw] of Object.entries(parsed.macros)) {
+          const macro = macroRaw.trim().toLowerCase();
+          if (!macro) continue;
+          const micros = normalise(Array.isArray(microsRaw) ? microsRaw : []);
+          for (const micro of micros) {
+            if (!microToMacros[micro]) microToMacros[micro] = [];
+            if (!microToMacros[micro].includes(macro)) {
+              microToMacros[micro].push(macro);
+            }
+          }
+        }
+      }
+
       // Expand aliases: add both the alias and the canonical tag into `tags`
       const aliasTags: string[] = [];
       if (parsed.aliases) {
         for (const [alias, canonical] of Object.entries(parsed.aliases)) {
-          aliasTags.push(alias.trim().toLowerCase());
-          aliasTags.push(canonical.trim().toLowerCase());
+          const aliasNorm = alias.trim().toLowerCase();
+          const canonicalNorm = canonical.trim().toLowerCase();
+          aliasTags.push(aliasNorm);
+          aliasTags.push(canonicalNorm);
+
+          // Inherit macro mapping from canonical tags to aliases
+          const inherited = microToMacros[canonicalNorm];
+          if (inherited && inherited.length > 0) {
+            if (!microToMacros[aliasNorm]) microToMacros[aliasNorm] = [];
+            for (const macro of inherited) {
+              if (!microToMacros[aliasNorm].includes(macro)) {
+                microToMacros[aliasNorm].push(macro);
+              }
+            }
+          }
         }
       }
 
@@ -259,6 +288,7 @@ export default class AutoTaggerPlugin extends Plugin {
         tags,
         stopwords: normalise(parsed.stopwords),
         blacklist: normalise(parsed.blacklist),
+        microToMacros,
       };
     } catch (err) {
       console.error(`[loadTagDictionary] Failed to parse JSON from "${source}":`, err);
@@ -288,7 +318,7 @@ export default class AutoTaggerPlugin extends Plugin {
 
       const tags = parseLegacyDictionaryText(content);
       this.debug(`[loadTagDictionary] Legacy text: loaded ${tags.length} tags from ${source}`);
-      return { tags, stopwords: [], blacklist: [] };
+      return { tags, stopwords: [], blacklist: [], microToMacros: {} };
 
     } catch (error) {
       console.error(`[loadTagDictionary] Error loading dictionary from "${source}":`, error);
@@ -306,19 +336,19 @@ export default class AutoTaggerPlugin extends Plugin {
 
     if (likelyJson) {
       const parsed = this.parseDictionaryJson(trimmed, `${sourceHint}#snapshot`);
-      if (parsed.tags.length > 0 || parsed.stopwords.length > 0 || parsed.blacklist.length > 0) {
+      if (parsed.tags.length > 0 || parsed.stopwords.length > 0 || parsed.blacklist.length > 0 || Object.keys(parsed.microToMacros).length > 0) {
         return parsed;
       }
     }
 
     const tags = parseLegacyDictionaryText(trimmed);
-    return { tags, stopwords: [], blacklist: [] };
+    return { tags, stopwords: [], blacklist: [], microToMacros: {} };
   }
 
   private async loadTagDictionaryForCollection(collection: Collection): Promise<LoadedDictionary> {
     if (collection.tagDictionaryPath) {
       const loaded = await this.loadTagDictionary(collection.tagDictionaryPath);
-      if (loaded.tags.length > 0 || loaded.stopwords.length > 0 || loaded.blacklist.length > 0) {
+      if (loaded.tags.length > 0 || loaded.stopwords.length > 0 || loaded.blacklist.length > 0 || Object.keys(loaded.microToMacros).length > 0) {
         return loaded;
       }
     }
@@ -328,7 +358,7 @@ export default class AutoTaggerPlugin extends Plugin {
         collection.tagDictionarySnapshot,
         collection.tagDictionaryPath || 'snapshot'
       );
-      if (fallback.tags.length > 0 || fallback.stopwords.length > 0 || fallback.blacklist.length > 0) {
+      if (fallback.tags.length > 0 || fallback.stopwords.length > 0 || fallback.blacklist.length > 0 || Object.keys(fallback.microToMacros).length > 0) {
         this.debug(`[loadTagDictionary] Using embedded snapshot for collection "${collection.name}"`);
       }
       return fallback;
@@ -337,24 +367,77 @@ export default class AutoTaggerPlugin extends Plugin {
     return EMPTY_DICTIONARY;
   }
 
+  private promoteMacroTags(
+    matchedMicroTags: string[],
+    dictionary: LoadedDictionary,
+    existingTags: string[],
+    maxMacroTags: number = 2
+  ): string[] {
+    const macroScores = new Map<string, number>();
+    for (const microTag of matchedMicroTags) {
+      const macros = dictionary.microToMacros[microTag] ?? [];
+      for (const macro of macros) {
+        macroScores.set(macro, (macroScores.get(macro) ?? 0) + 1);
+      }
+    }
+
+    if (macroScores.size === 0) return [];
+
+    return Array.from(macroScores.entries())
+      .sort((a, b) => b[1] - a[1])
+      .map(([macro]) => macro)
+      .filter(macro => !dictionary.blacklist.includes(macro))
+      .filter(macro => !existingTags.includes(macro))
+      .slice(0, maxMacroTags);
+  }
+
   /**
    * Match content to predefined tags using TF-IDF similarity
    */
-  private matchContentToTags(text: string, title: string, availableTags: string[], maxTags: number = 5, extraStopwords: string[] = []): string[] {
+  private matchContentToTags(
+    text: string,
+    title: string,
+    availableTags: string[],
+    maxTags: number = 5,
+    extraStopwords: string[] = [],
+    excludedTags: string[] = [],
+    blacklistedTags: string[] = []
+  ): string[] {
+    console.log(`[AUTO-TAGGER] matchContentToTags START: ${availableTags.length} tags, maxTags=${maxTags}, extraStopwords=${extraStopwords.length}`);
+    
     const combinedText = `${title} ${title} ${title} ${text}`.toLowerCase(); // Weight title 3x
     const stopSet = new Set(extraStopwords.map(s => s.toLowerCase()));
     const words = combinedText.replace(/[^\w\s-]/g, ' ').split(/\s+/).filter(w => w.length > 2 && !stopSet.has(w));
     
+    console.log(`[AUTO-TAGGER] Extracted ${words.length} words: ${words.slice(0, 20).join(', ')}...`);
+    
+    if (words.length === 0) {
+      console.log(`[AUTO-TAGGER] WARNING: No valid words extracted!`);
+      return [];
+    }
+    
     // Score each tag based on how well it matches the content
     const tagScores: Record<string, number> = {};
+    let scoredCount = 0;
     
     for (const tag of availableTags) {
       const tagWords = tag.split(/[-_\s]+/); // Split multi-word tags
       let score = 0;
       
       for (const tagWord of tagWords) {
-        // Count occurrences of tag word in content
-        const occurrences = words.filter(w => w.includes(tagWord) || tagWord.includes(w)).length;
+        if (!tagWord) continue; // Skip empty splits
+        
+        // Count occurrences of tag word in content (with partial/stem matching)
+        const occurrences = words.filter(w => {
+          // Exact match
+          if (w === tagWord) return true;
+          // Partial match (tag word is prefix or suffix)
+          if (w.includes(tagWord) || tagWord.includes(w)) return true;
+          // Stem-like matching: first 3+ chars match
+          if (tagWord.length >= 3 && w.length >= 3 && w.startsWith(tagWord.substring(0, 3))) return true;
+          return false;
+        }).length;
+        
         score += occurrences;
         
         // Bonus for exact matches
@@ -370,14 +453,28 @@ export default class AutoTaggerPlugin extends Plugin {
       
       if (score > 0) {
         tagScores[tag] = score;
+        scoredCount++;
+        if (scoredCount <= 10) {
+          console.log(`[AUTO-TAGGER] Tag "${tag}" scored ${score}`);
+        }
       }
     }
     
-    // Return top tags sorted by score
-    return Object.entries(tagScores)
+    console.log(`[AUTO-TAGGER] Total ${scoredCount} tags scored > 0, returning top ${Math.min(maxTags, Object.keys(tagScores).length)}`);
+    
+    const excluded = new Set(excludedTags.map(t => t.toLowerCase()));
+    const blacklisted = new Set(blacklistedTags.map(t => t.toLowerCase()));
+
+    // Return top tags sorted by score. Filter before truncation so blocked tags don't consume top slots.
+    const result = Object.entries(tagScores)
       .sort((a, b) => b[1] - a[1])
+      .filter(([tag]) => !blacklisted.has(tag.toLowerCase()))
+      .filter(([tag]) => !excluded.has(tag.toLowerCase()))
       .slice(0, maxTags)
       .map(([tag]) => tag);
+    
+    console.log(`[AUTO-TAGGER] matchContentToTags RETURN: ${result.length} tags`);
+    return result;
   }
 
   /**
@@ -523,8 +620,15 @@ export default class AutoTaggerPlugin extends Plugin {
         
         if (usingDictionary) {
           // Match content to predefined tags, then filter out blacklisted ones
-          tags = this.matchContentToTags(content, title, dictionary.tags, collection.maxTags)
-            .filter(t => !dictionaryBlacklist.has(t));
+          tags = this.matchContentToTags(
+            content,
+            title,
+            dictionary.tags,
+            collection.maxTags,
+            [],
+            [],
+            Array.from(dictionaryBlacklist)
+          );
           
           if (filesChecked < 3) {
             this.debug(`[Training] File "${file.basename}": matched ${tags.length} dictionary tags: ${tags.join(', ')}`);
@@ -775,12 +879,14 @@ export default class AutoTaggerPlugin extends Plugin {
           continue;
         }
         const dictionary = await this.loadTagDictionaryForCollection(collection);
+        console.log(`[AUTO-TAGGER DEBUG] Static mode - dictionary loaded: ${dictionary.tags.length} tags`);
         const allDictTags = [
           ...dictionary.tags,
           ...(collection.additionalTags ?? []),
         ];
         if (allDictTags.length === 0) {
           this.debug(`  - Skipping static collection: dictionary is empty or failed to load`);
+          console.log(`[AUTO-TAGGER DEBUG] allDictTags is empty!`);
           continue;
         }
 
@@ -797,14 +903,26 @@ export default class AutoTaggerPlugin extends Plugin {
           ...(collection.additionalStopwords ?? []),
         ];
 
-        const matched = this.matchContentToTags(content, title, allDictTags, collection.maxTags, extraStopwords)
-          .filter(tag => !dictionary.blacklist.includes(tag))
-          .filter(tag => !existingTags.includes(tag));
+        console.log(`[AUTO-TAGGER DEBUG] About to call matchContentToTags: ${allDictTags.length} tags, title="${title}"`);
+        const matched = this.matchContentToTags(
+          content,
+          title,
+          allDictTags,
+          collection.maxTags,
+          extraStopwords,
+          existingTags,
+          dictionary.blacklist
+        );
+        console.log(`[AUTO-TAGGER DEBUG] matchContentToTags returned ${matched.length} tags`);
 
-        this.debug(`  - Static: matched ${matched.length} tags: ${matched.join(', ')}`);
+        const macroTags = this.promoteMacroTags(matched, dictionary, existingTags, 2);
+        // Micro tags fill up to maxTags; macro tags are additive (not counted against the limit)
+        const merged = [...new Set([...matched.slice(0, collection.maxTags), ...macroTags])];
+
+        this.debug(`  - Static: matched ${merged.length} tags: ${merged.join(', ')}`);
 
         // Assign descending pseudo-probabilities (0.95 for top match, decreasing by 0.05)
-        matched.forEach((tag, i) => {
+        merged.forEach((tag, i) => {
           const prob = Math.max(0.5, 0.95 - i * 0.05);
           const existing = tagScores.get(tag);
           if (!existing || prob > existing.probability) {
@@ -901,14 +1019,17 @@ export default class AutoTaggerPlugin extends Plugin {
       new Notice('File is not in scope of any enabled collection');
       return;
     }
-    
-    const hasTrainedClassifier = applicableCollections.some(c => {
+
+    const hasUsableSource = applicableCollections.some(c => {
+      if (c.dictionaryMode === 'static') {
+        return Boolean(c.tagDictionaryPath || c.tagDictionarySnapshot);
+      }
       const classifier = this.classifiers.get(c.id);
-      return classifier && classifier.getStats().totalDocs > 0;
+      return Boolean(classifier && classifier.getStats().totalDocs > 0);
     });
-    
-    if (!hasTrainedClassifier) {
-      new Notice('No trained classifiers for this file. Please train collections first.');
+
+    if (!hasUsableSource) {
+      new Notice('No usable source for this file. Train a learning collection or configure a static dictionary.');
       return;
     }
     
@@ -1070,14 +1191,17 @@ export default class AutoTaggerPlugin extends Plugin {
       new Notice('File is not in scope of any enabled collection');
       return;
     }
-    
-    const hasTrainedClassifier = applicableCollections.some(c => {
+
+    const hasUsableSource = applicableCollections.some(c => {
+      if (c.dictionaryMode === 'static') {
+        return Boolean(c.tagDictionaryPath || c.tagDictionarySnapshot);
+      }
       const classifier = this.classifiers.get(c.id);
-      return classifier && classifier.getStats().totalDocs > 0;
+      return Boolean(classifier && classifier.getStats().totalDocs > 0);
     });
-    
-    if (!hasTrainedClassifier) {
-      new Notice('No trained classifiers for this file. Please train collections first.');
+
+    if (!hasUsableSource) {
+      new Notice('No usable source for this file. Train a learning collection or configure a static dictionary.');
       return;
     }
     
@@ -1101,9 +1225,18 @@ export default class AutoTaggerPlugin extends Plugin {
   async tagAllNotes(mode: 'integrate' | 'overwrite' = 'integrate'): Promise<void> {
     console.log('[Auto Tagger] Starting batch tag operation');
     console.log('[Auto Tagger] Debug enabled:', this.settings?.debugToConsole);
-    
-    if (this.classifiers.size === 0) {
-      new Notice('No trained classifiers. Please train collections first.');
+
+    const hasUsableCollection = this.settings.collections.some(c => {
+      if (!c.enabled) return false;
+      if (c.dictionaryMode === 'static') {
+        return Boolean(c.tagDictionaryPath || c.tagDictionarySnapshot);
+      }
+      const classifier = this.classifiers.get(c.id);
+      return Boolean(classifier && classifier.getStats().totalDocs > 0);
+    });
+
+    if (!hasUsableCollection) {
+      new Notice('No usable collections. Train a learning collection or configure a static dictionary.');
       return;
     }
     
@@ -1114,6 +1247,7 @@ export default class AutoTaggerPlugin extends Plugin {
     
     let tagged = 0;
     let failed = 0;
+    let withSuggestions = 0;
     let totalAdded = 0;
     let totalRemoved = 0;
     const details: Array<{ file: string, added: string[], removed: string[] }> = [];
@@ -1123,6 +1257,7 @@ export default class AutoTaggerPlugin extends Plugin {
         const suggestions = await this.getSuggestions(file);
         
         if (suggestions.length > 0) {
+          withSuggestions++;
           const tags = suggestions.map(s => s.tag);
           const result = await this.applyTags(file, tags, mode);
           
@@ -1144,6 +1279,11 @@ export default class AutoTaggerPlugin extends Plugin {
     }
     
     notice.hide();
+
+    const withoutSuggestions = files.length - withSuggestions;
+    if (withoutSuggestions > 0) {
+      new Notice(`Processed ${files.length} files: ${withSuggestions} with suggestions, ${withoutSuggestions} without suggestions.`);
+    }
     
     if (tagged > 0 || totalRemoved > 0) {
       new BatchSummaryModal(
@@ -1172,8 +1312,17 @@ export default class AutoTaggerPlugin extends Plugin {
       return;
     }
     
-    if (this.classifiers.size === 0) {
-      new Notice('No trained classifiers. Please train collections first.');
+    const hasUsableCollection = this.settings.collections.some(c => {
+      if (!c.enabled) return false;
+      if (c.dictionaryMode === 'static') {
+        return Boolean(c.tagDictionaryPath || c.tagDictionarySnapshot);
+      }
+      const classifier = this.classifiers.get(c.id);
+      return Boolean(classifier && classifier.getStats().totalDocs > 0);
+    });
+
+    if (!hasUsableCollection) {
+      new Notice('No usable collections. Train a learning collection or configure a static dictionary.');
       return;
     }
     

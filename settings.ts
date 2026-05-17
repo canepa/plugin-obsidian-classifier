@@ -94,6 +94,8 @@ export interface TagDictionary {
   whitelist?: string[];
   /** Alias map: key is alias, value is canonical tag, e.g. { "js": "javascript" } */
   aliases?: Record<string, string>;
+  /** Optional macro-to-micro mapping for hierarchical suggestions in static mode */
+  macros?: Record<string, string[]>;
   /** ISO date of last update, e.g. "2026-05-16" */
   updatedAt?: string;
 }
@@ -543,21 +545,16 @@ export class AutoTaggerSettingTab extends PluginSettingTab {
       new Setting(collectionContainer)
         .setName('Include folders')
         .setDesc('Comma-separated list of folder paths')
-        .setClass('auto-tagger-compact-textarea-setting')
-        .addTextArea(text => {
-          text.inputEl.rows = 2;
-          text
-            .setPlaceholder('Folder1, folder2/subfolder')
-            .setValue(collection.includeFolders.join(', '))
-            .onChange(async (value) => {
-              collection.includeFolders = value
-                .split(',')
-                .map(f => f.trim())
-                .filter(f => f.length > 0);
-              await this.plugin.saveSettings();
-            });
-          return text;
-        });
+        .addText(text => text
+          .setPlaceholder('Folder1, folder2/subfolder')
+          .setValue(collection.includeFolders.join(', '))
+          .onChange(async (value) => {
+            collection.includeFolders = value
+              .split(',')
+              .map(f => f.trim())
+              .filter(f => f.length > 0);
+            await this.plugin.saveSettings();
+          }));
     }
 
     if (collection.folderMode === 'exclude') {
@@ -592,6 +589,18 @@ export class AutoTaggerSettingTab extends PluginSettingTab {
       .setHeading();
 
     const _isUrl = (s: string) => s.startsWith('http://') || s.startsWith('https://');
+
+    if (collection.dictionaryMode === 'static') {
+      const examplesUrl = 'https://github.com/canepa/plugin-obsidian-classifier/tree/main/dictionaries';
+      new Setting(collectionContainer)
+        .setName('Example dictionaries')
+        .setDesc('Download ready-to-use JSON dictionaries from the plugin repository')
+        .addButton(btn => btn
+          .setButtonText('Open on GitHub')
+          .onClick(() => {
+            window.open(examplesUrl, '_blank');
+          }));
+    }
 
     if (!collection.tagDictionaryPath) {
       // ── CONFIGURE STATE: no dictionary set yet ──────────────────────────
@@ -705,7 +714,7 @@ export class AutoTaggerSettingTab extends PluginSettingTab {
       });
 
       // "Change" button
-      new Setting(collectionContainer)
+      const actionsRow = new Setting(collectionContainer)
         .setClass('auto-tagger-dict-card-actions')
         .addButton(btn => btn
           .setButtonText('Change dictionary')
@@ -714,37 +723,37 @@ export class AutoTaggerSettingTab extends PluginSettingTab {
             collection.tagDictionarySnapshot = '';
             await this.plugin.saveSettings();
             this.display();
-          }))
-        .addButton(btn => {
-          if (_isUrl(collection.tagDictionaryPath)) {
-            btn.setButtonText('Save local copy').setTooltip('Download and save as vault file')
-              .onClick(async () => {
-                const url = collection.tagDictionaryPath;
-                btn.setButtonText('Downloading…').setDisabled(true);
-                try {
-                  const resp = await requestUrl({ url, method: 'GET' });
-                  if (resp.status !== 200) { new Notice(`HTTP ${resp.status}`); return; }
-                  const rawName = new URL(url).pathname.split('/').filter(Boolean).pop() ?? 'dictionary.json';
-                  const safeName = rawName.replace(/[^a-zA-Z0-9._-]/g, '_');
-                  const destPath = `dictionaries/${safeName}`;
-                  if (!this.app.vault.getFolderByPath('dictionaries')) {
-                    await this.app.vault.createFolder('dictionaries');
-                  }
-                  const ex = this.app.vault.getFileByPath(destPath);
-                  if (ex) { await this.app.vault.modify(ex, resp.text); }
-                  else    { await this.app.vault.create(destPath, resp.text); }
-                  collection.tagDictionaryPath = destPath;
-                  await this._captureDictionarySnapshot(collection, resp.text);
-                  await this.plugin.saveSettings();
-                  this.display();
-                } catch (e) {
-                  new Notice(`Failed: ${e instanceof Error ? e.message : String(e)}`);
-                  btn.setButtonText('Save local copy').setDisabled(false);
-                }
-              });
-          }
-          return btn;
-        });
+          }));
+
+      if (_isUrl(collection.tagDictionaryPath)) {
+        actionsRow.addButton(btn => btn
+          .setButtonText('Save local copy')
+          .setTooltip('Download and save as vault file')
+          .onClick(async () => {
+            const url = collection.tagDictionaryPath;
+            btn.setButtonText('Downloading…').setDisabled(true);
+            try {
+              const resp = await requestUrl({ url, method: 'GET' });
+              if (resp.status !== 200) { new Notice(`HTTP ${resp.status}`); return; }
+              const rawName = new URL(url).pathname.split('/').filter(Boolean).pop() ?? 'dictionary.json';
+              const safeName = rawName.replace(/[^a-zA-Z0-9._-]/g, '_');
+              const destPath = `dictionaries/${safeName}`;
+              if (!this.app.vault.getFolderByPath('dictionaries')) {
+                await this.app.vault.createFolder('dictionaries');
+              }
+              const ex = this.app.vault.getFileByPath(destPath);
+              if (ex) { await this.app.vault.modify(ex, resp.text); }
+              else    { await this.app.vault.create(destPath, resp.text); }
+              collection.tagDictionaryPath = destPath;
+              await this._captureDictionarySnapshot(collection, resp.text);
+              await this.plugin.saveSettings();
+              this.display();
+            } catch (e) {
+              new Notice(`Failed: ${e instanceof Error ? e.message : String(e)}`);
+              btn.setButtonText('Save local copy').setDisabled(false);
+            }
+          }));
+      }
 
       // Async: fill the card with dictionary metadata
       setTimeout(() => {
@@ -828,34 +837,24 @@ export class AutoTaggerSettingTab extends PluginSettingTab {
       new Setting(collectionContainer)
         .setName('Additional tags')
         .setDesc('Extra tags to include on top of the dictionary (comma-separated)')
-        .setClass('auto-tagger-compact-textarea-setting')
-        .addTextArea(text => {
-          text.inputEl.rows = 2;
-          text
-            .setPlaceholder('project, review, inbox')
-            .setValue((collection.additionalTags ?? []).join(', '))
-            .onChange(async (value) => {
-              collection.additionalTags = value.split(',').map(t => t.trim().toLowerCase()).filter(Boolean);
-              await this.plugin.saveSettings();
-            });
-          return text;
-        });
+        .addText(text => text
+          .setPlaceholder('project, review, inbox')
+          .setValue((collection.additionalTags ?? []).join(', '))
+          .onChange(async (value) => {
+            collection.additionalTags = value.split(',').map(t => t.trim().toLowerCase()).filter(Boolean);
+            await this.plugin.saveSettings();
+          }));
 
       new Setting(collectionContainer)
         .setName('Additional stopwords')
         .setDesc('Extra words to ignore when matching content to tags (comma-separated)')
-        .setClass('auto-tagger-compact-textarea-setting')
-        .addTextArea(text => {
-          text.inputEl.rows = 2;
-          text
-            .setPlaceholder('the, and, or, is')
-            .setValue((collection.additionalStopwords ?? []).join(', '))
-            .onChange(async (value) => {
-              collection.additionalStopwords = value.split(',').map(t => t.trim().toLowerCase()).filter(Boolean);
-              await this.plugin.saveSettings();
-            });
-          return text;
-        });
+        .addText(text => text
+          .setPlaceholder('the, and, or, is')
+          .setValue((collection.additionalStopwords ?? []).join(', '))
+          .onChange(async (value) => {
+            collection.additionalStopwords = value.split(',').map(t => t.trim().toLowerCase()).filter(Boolean);
+            await this.plugin.saveSettings();
+          }));
     } else {
       // Learning mode: whitelist, blacklist, all-tags panel
       new Setting(collectionContainer)

@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "digital-marketing-italian",
   "name": "Digital Marketing Italiano",
   "description": "Dizionario completo per appunti di un digital marketer in italiano. Copre SEO, SEM, paid social, content marketing, email marketing, marketing automation, analytics, CRO, branding, ecommerce, MarTech, privacy, normativa italiana ed europea e marketing con AI. Mantiene gli anglicismi standard del settore (SEO, CTR, ROAS) e integra terminologia italiana specifica.",
@@ -578,6 +578,101 @@
     "pr-digitali": "digital-pr",
     "scrittura-seo": "copywriting",
     "copy-seo": "copywriting"
+  },
+  "macros": {
+    "seo": [
+      "seo",
+      "seo-tecnica",
+      "seo-on-page",
+      "seo-off-page",
+      "seo-locale",
+      "seo-internazionale",
+      "keyword-research",
+      "backlink",
+      "schema-markup",
+      "core-web-vitals"
+    ],
+    "adv": [
+      "sem",
+      "ppc",
+      "google-ads",
+      "meta-ads",
+      "linkedin-ads",
+      "tiktok-ads",
+      "programmatic",
+      "retargeting",
+      "cpc",
+      "roas"
+    ],
+    "content-marketing": [
+      "content-marketing",
+      "strategia-contenuti",
+      "copywriting",
+      "blogging",
+      "piano-editoriale",
+      "video-marketing"
+    ],
+    "email-marketing": [
+      "email-marketing",
+      "newsletter",
+      "drip-campaign",
+      "marketing-automation",
+      "segmentazione",
+      "consegnabilità"
+    ],
+    "social-media": [
+      "social-media-marketing",
+      "social-organico",
+      "linkedin",
+      "instagram",
+      "facebook",
+      "tiktok",
+      "youtube",
+      "influencer-marketing"
+    ],
+    "analytics": [
+      "web-analytics",
+      "marketing-analytics",
+      "google-analytics",
+      "ga4",
+      "google-tag-manager",
+      "attribuzione",
+      "tracciamento-conversioni",
+      "dashboard"
+    ],
+    "cro": [
+      "cro",
+      "ottimizzazione-conversioni",
+      "ab-testing",
+      "landing-page",
+      "funnel",
+      "heatmap"
+    ],
+    "branding": [
+      "branding",
+      "brand-strategy",
+      "brand-awareness",
+      "posizionamento",
+      "tone-of-voice",
+      "storytelling"
+    ],
+    "ecommerce": [
+      "ecommerce",
+      "shopify",
+      "woocommerce",
+      "adobe-commerce",
+      "shopping-ads",
+      "carrello-abbandonato"
+    ],
+    "ai-marketing": [
+      "aeo",
+      "geo",
+      "ottimizzazione-llm",
+      "ai-overview",
+      "sge",
+      "ai-marketing",
+      "ai-generativa"
+    ]
   },
   "updatedAt": "2026-05-16"
 }

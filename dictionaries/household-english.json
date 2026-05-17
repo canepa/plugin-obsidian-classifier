@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "household-english",
   "name": "Household English",
   "description": "Dictionary for personal and household notes in English. Covers housing & rent, utilities, domestic help, condominium/HOA, health & medical, vehicles, insurance, banking, taxes, family & school, pets, travel, home maintenance, documents, subscriptions and emergencies.",
@@ -553,6 +553,139 @@
     "smoke-alarm": "smoke-detector",
     "co-detector": "carbon-monoxide-detector",
     "co2-detector": "carbon-monoxide-detector"
+  },
+  "macros": {
+    "housing": [
+      "rent",
+      "lease",
+      "landlord",
+      "tenant",
+      "moving",
+      "mortgage",
+      "property-purchase",
+      "property-sale"
+    ],
+    "utilities": [
+      "utility-bill",
+      "electricity",
+      "gas",
+      "water",
+      "internet",
+      "phone-bill",
+      "autopay",
+      "direct-debit"
+    ],
+    "home-services": [
+      "housekeeper",
+      "cleaner",
+      "babysitter",
+      "nanny",
+      "gardener",
+      "dog-walker",
+      "handyman"
+    ],
+    "condominium": [
+      "condominium",
+      "hoa",
+      "strata",
+      "service-charge",
+      "maintenance-fee",
+      "building-manager"
+    ],
+    "health": [
+      "doctor",
+      "appointment",
+      "prescription",
+      "pharmacy",
+      "hospital",
+      "emergency-room",
+      "health-insurance"
+    ],
+    "vehicle": [
+      "car",
+      "vehicle",
+      "car-maintenance",
+      "registration-renewal",
+      "parking",
+      "fuel",
+      "roadside-assistance"
+    ],
+    "insurance": [
+      "home-insurance",
+      "renters-insurance",
+      "car-insurance",
+      "health-insurance",
+      "life-insurance",
+      "claim",
+      "premium"
+    ],
+    "finance": [
+      "checking-account",
+      "savings-account",
+      "credit-card",
+      "loan",
+      "tax-return",
+      "income-tax",
+      "property-tax",
+      "accountant"
+    ],
+    "family-school": [
+      "school",
+      "daycare",
+      "homework",
+      "parent-teacher-meeting",
+      "tuition",
+      "school-bus"
+    ],
+    "pets": [
+      "pet",
+      "vet",
+      "pet-vaccination",
+      "microchip",
+      "pet-insurance"
+    ],
+    "travel": [
+      "travel",
+      "flight",
+      "hotel",
+      "reservation",
+      "passport",
+      "visa",
+      "travel-insurance"
+    ],
+    "home-maintenance": [
+      "plumber",
+      "electrician",
+      "boiler",
+      "heating",
+      "air-conditioning",
+      "renovation",
+      "pest-control"
+    ],
+    "documents": [
+      "passport",
+      "id-card",
+      "drivers-license",
+      "birth-certificate",
+      "marriage-certificate",
+      "social-security-number"
+    ],
+    "subscriptions": [
+      "subscription",
+      "subscription-renewal",
+      "netflix",
+      "spotify",
+      "amazon-prime",
+      "disney-plus"
+    ],
+    "emergencies": [
+      "emergency",
+      "first-aid-kit",
+      "smoke-detector",
+      "carbon-monoxide-detector",
+      "roadside-assistance",
+      "urgent-care"
+    ]
   },
   "updatedAt": "2026-05-16"
 }

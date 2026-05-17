@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "household-italian",
   "name": "Household Italiano",
   "description": "Dizionario per appunti personali e domestici in italiano. Copre casa e affitto, utenze, colf/badante/baby-sitter, condominio, salute (SSN/ASL), auto, assicurazioni, banca, fisco italiano (IMU/TARI/IRPEF/730), famiglia e scuola, animali, viaggi, manutenzione casa, documenti (SPID/CIE/PEC), abbonamenti e previdenza.",
@@ -721,6 +721,143 @@
     "115-vigili-fuoco": "115",
     "fuga-di-gas": "perdita-gas",
     "kit-pronto-soccorso": "kit-emergenza"
+  },
+  "macros": {
+    "casa": [
+      "affitto",
+      "locazione",
+      "locatore",
+      "conduttore",
+      "trasloco",
+      "mutuo",
+      "compravendita",
+      "rogito"
+    ],
+    "utenze": [
+      "utenze",
+      "bolletta",
+      "luce",
+      "gas",
+      "acqua",
+      "internet",
+      "telefono",
+      "addebito-diretto"
+    ],
+    "servizi-domestici": [
+      "colf",
+      "badante",
+      "baby-sitter",
+      "tata",
+      "giardiniere",
+      "tuttofare"
+    ],
+    "condominio": [
+      "condominio",
+      "amministratore-condominio",
+      "assemblea-condominiale",
+      "millesimi",
+      "spese-condominiali",
+      "manutenzione-straordinaria"
+    ],
+    "salute": [
+      "salute",
+      "medico-di-base",
+      "asl",
+      "ssn",
+      "ricetta-medica",
+      "farmacia",
+      "ospedale",
+      "pronto-soccorso"
+    ],
+    "auto": [
+      "auto",
+      "automobile",
+      "revisione-auto",
+      "bollo-auto",
+      "assicurazione-auto",
+      "tagliando",
+      "carburante",
+      "sinistro"
+    ],
+    "assicurazioni": [
+      "assicurazioni",
+      "polizza",
+      "polizza-casa",
+      "polizza-vita",
+      "polizza-viaggio",
+      "rinnovo-polizza",
+      "franchigia"
+    ],
+    "finanze": [
+      "conto-corrente",
+      "carta-di-credito",
+      "carta-di-debito",
+      "modello-730",
+      "dichiarazione-redditi",
+      "imu",
+      "tari",
+      "commercialista"
+    ],
+    "famiglia-scuola": [
+      "asilo-nido",
+      "scuola-materna",
+      "scuola-elementare",
+      "scuola-media",
+      "scuola-superiore",
+      "università",
+      "mensa-scolastica"
+    ],
+    "animali": [
+      "animali",
+      "veterinario",
+      "vaccinazione-cane",
+      "vaccinazione-gatto",
+      "toelettatura",
+      "assicurazione-animali"
+    ],
+    "viaggi": [
+      "vacanze",
+      "volo",
+      "hotel",
+      "treno",
+      "prenotazione",
+      "passaporto",
+      "assicurazione-viaggio"
+    ],
+    "manutenzione-casa": [
+      "ristrutturazione",
+      "manutenzione-ordinaria",
+      "tecnico-caldaia",
+      "condizionatore",
+      "elettricista",
+      "idraulico"
+    ],
+    "documenti": [
+      "carta-identità",
+      "cie",
+      "spid",
+      "pec",
+      "codice-fiscale",
+      "partita-iva",
+      "raccomandata-ar"
+    ],
+    "abbonamenti": [
+      "abbonamento",
+      "netflix",
+      "spotify",
+      "amazon-prime",
+      "disney-plus",
+      "canone-rai",
+      "palestra"
+    ],
+    "emergenze": [
+      "112",
+      "118",
+      "115",
+      "kit-emergenza",
+      "perdita-gas",
+      "pronto-soccorso"
+    ]
   },
   "updatedAt": "2026-05-16"
 }
